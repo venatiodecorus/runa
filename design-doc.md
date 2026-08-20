@@ -159,6 +159,8 @@ Four documents, living in-repo, versioned, changed via the same review process a
 
 Disclosure boundary, stated openly: all algorithms and signal types public; a small set of operational friction thresholds unpublished (the only reading-gameable layer).
 
+Beyond the four specs, an **explainer tier** (docs/explainers/): plain-language documents describing how reach works and how the cryptography works, aimed at users and journalists, not implementers. The specs are the truth; the explainers are the honesty. They change in the same PR as any algorithm or crypto change (§15).
+
 ## 10. Threat model (summary for the standalone doc)
 
 **Server (honest-but-curious):** sees full graph, all metadata (timing, sizes, device lists, epoch distribution fan-out), all public content. Cannot read tier-2/3 content. Cannot forge content or attestations (signatures). This is 95% of the realistic threat and 100% of the mass-surveillance one.
@@ -206,6 +208,8 @@ Disclosure boundary, stated openly: all algorithms and signal types public; a sm
 
 Rationale: each milestone is independently testable; crypto layers build bottom-up (tier-2 is the distribution rail for tier-3); enforcement lands after there's behavior to enforce on; invites land late because open signup works without them.
 
+**Parallel workstream — simlab (§16):** starts as soon as the trust math exists as shared code (M2) and needs no server. Budget (M4), standing, and report-diversity (M7) dynamics are simulated in simlab *before* their server implementations land — tuning and red-teaming precede enforcement.
+
 ## 13. Testing flags & watch items
 
 - **Trust computation locus** (§3.3): server-assisted vs pure client-side — measure browser latency on real 2-hop fetches; invariant holds either way.
@@ -214,7 +218,29 @@ Rationale: each milestone is independently testable; crypto layers build bottom-
 - WebAuthn PRF coverage across target browsers at implementation time.
 - Diversity-weighting math for reports: needs concrete graph-distance metric; prototype and red-team with simulated brigades.
 - Explore mode quality — the designated filter-bubble mitigation; treat as a product priority, not an afterthought.
+- All constants-tuning flags above route through simlab (§16): a constant change without a cited simlab scenario is an unreviewable constant change.
 
 ## 14. Known tradeoffs (state in docs, don't hide)
 
 Filter bubbles by construction (mitigated only by explore mode); full metadata + graph visible to server; epoch granularity as forward-secrecy dial; residual structural advantage for well-connected accounts (softened, not eliminated); v1 tier-2 lacks per-message forward secrecy (upgrade path specified); centralized server can censor even though it can't read or forge; web code delivery is the E2E soft spot; attestation is a public act; failed recovery is a new account on purpose.
+
+## 15. Openness & self-hosted instances
+
+Radical openness is a product feature, not just a licensing posture. Concretely:
+
+- **Everything needed to run and audit the network is public**: source for server and client, the protocol/trust specs, the constants, and plain-language explainers of how reach and the cryptography work (§9 explainer tier).
+- **Deployment model**: the project operates a **primary instance**; the identical software is designed for anyone to stand up their own instance. **No primary-instance privilege in code** — the primary is the reference deployment, nothing more. Anything the primary can do, any operator can do.
+- **Instance = one server plus its users' graph.** v1 instances are independent networks: identity keypairs are instance-independent (the same root key can be used on any instance — identity is yours, not the operator's), but graph, content, standing, and budgets live per instance. **Federation between instances is an explicit v1 non-goal**, deferred, not foreclosed: the recorded implications (cross-instance trust paths, mailbox routing, attestation propagation, per-instance standing) must be revisited before any design choice would foreclose them cheaply.
+- **Instances self-describe**: a public meta endpoint publishes the instance's software/protocol version and its running constants. Clients compute trust with the instance-published constants and **surface deviations from the reference defaults** ("this instance runs decay 0.5, reference is 0.35"). The transparency invariant (§1.8) is a per-instance protocol expectation, not a courtesy of the primary.
+- **Operator trust is a user choice**: each instance's operator is exactly the honest-but-curious/active server of the threat model for that instance's users. Self-hosting distributes operator power; it does not eliminate it.
+
+## 16. Simulation & tuning lab (simlab)
+
+An in-repo tool to model how tuning the published constants changes reach across a simulated population, with visuals. Requirements:
+
+- **Runs the real math.** simlab imports the same shared trust/budget code the shipping client uses (single core package). The simulator is an argument about the actual system; a forked reimplementation would be worthless as evidence.
+- **Synthetic populations**: configurable size; several follow-graph generators (random, small-world/clustered communities, preferential attachment); cohorts with distinct behavior (genuine newcomers, well-connected accounts, Sybil rings, coordinated brigades); seeded RNG so every run is reproducible.
+- **Tunable inputs**: every published constant (§11) adjustable live — decay, sum cap, surface threshold, budget base/`k`/carryover, standing half-life, epoch cadence where relevant.
+- **Outputs (visual + numeric)**: reach distribution across the population (for each account, how many viewers' feeds surface it above threshold) as histogram/CDF; newcomer budget trajectories against follower growth; the §13 target metric (% of good-faith accounts ever hitting a budget ceiling, target <1%); Sybil-ring effective reach vs honest-cohort reach; brigade impact on standing once the standing model exists.
+- **Two modes**: an interactive browser UI (sliders + charts) and a headless CLI for scripted parameter sweeps emitting JSON/CSV. **Scenario files are checked into the repo** — tuning debates cite reproducible scenarios, and §13's flags are resolved by scenario, not vibes.
+- **Role in governance**: proposed constant changes must cite the simlab scenarios that motivated them (§9 review process).

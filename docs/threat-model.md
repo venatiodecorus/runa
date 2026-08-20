@@ -20,6 +20,8 @@ Explicitly **not** protected assets in v1 (stated non-goals): metadata privacy f
 **Cannot:** read tier-2/3 content (client-side encryption, server never holds keys); forge content, follows, or attestations (everything is signed; server verifies but is never a trust root).
 This adversary covers mass surveillance and data-breach scenarios: a full database dump yields ciphertext, public content, and the graph — no private content, no keys.
 
+**Instances (design §15):** the network is self-hostable; each instance's operator is the A1/A2 adversary *for that instance's users*. Self-hosting distributes operator power across many smaller operators — it does not eliminate it, and choosing an instance is choosing which operator to stand in this threat model. An operator who quietly alters trust constants is caught by `/meta` disclosure plus client-side recomputation; one who alters the invariants is running a detectable fork.
+
 ### A2. Active / malicious / compelled server
 
 - **Can:** deny service; selectively drop or withhold messages, records, and attestations; serve manipulated *orderings*. Signed content makes tampering detectable, not censorship. Client-side re-ranking (design §3.3) makes ranking manipulation detectable because the algorithm is published.

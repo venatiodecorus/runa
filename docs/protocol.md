@@ -21,7 +21,7 @@
 ## 2. Identity & naming
 
 - **Root key:** Ed25519 keypair, generated client-side from a 32-byte seed (the seed is what the recovery kit encodes). Signs *only* device certificates and device revocations. Never signs content.
-- **Account ID:** `base64url(root_public_key)` — 43 chars. The pubkey *is* the identity; there is no server-assigned ID. Display names/handles are non-unique profile metadata (a signed `profile` record), never identifiers.
+- **Account ID:** `base64url(root_public_key)` — 43 chars. The pubkey *is* the identity; there is no server-assigned ID. Display names/handles are non-unique profile metadata (a signed `profile` record), never identifiers. Identity is therefore **instance-independent** (design §15): the same root key can enroll on any instance; v1 instances are otherwise independent networks (no federation).
 - **Fingerprint (for UI / QR / safety numbers):** SHA-256 of the root public key, rendered per client convention (e.g., grouped hex or numeric safety-number form). Not used on the wire.
 - **Device keys:** per device/browser-profile, self-generated: one Ed25519 signing keypair + one X25519 kex keypair. **Device ID:** `base64url(device_signing_public_key)`. Devices do all operational work: sign records, receive wrapped keys.
 
@@ -99,6 +99,7 @@ Auth: signup is open (`POST /accounts` with root pubkey + first device cert). Se
 
 | Endpoint | Purpose |
 |---|---|
+| `GET /meta` | instance self-description: `{name, software_version, protocol_version, constants: {…}}` — unauthenticated; clients compute trust with these values and badge deviations from reference defaults (design §15) |
 | `POST /accounts` | create account: root pubkey + initial `device-cert` |
 | `GET /accounts/{id}` | profile, device certs/revocations, follower **count** |
 | `POST /records` | submit any signed record; server verifies before storing |

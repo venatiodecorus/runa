@@ -63,4 +63,6 @@ An initiation is **cold** iff the *recipient* has no trust path (≤2 hops, abov
 | KDF (passphrase backup) | Argon2id, m=64 MiB, t=3, p=1 | see protocol §7 |
 | Shamir (social recovery) | K-of-N, user-chosen | suggested default 3-of-5 |
 
-Constants live in exactly two source files — one Go (`server/internal/trust/constants.go`), one TypeScript (`web/src/trust/constants.ts`) — plus this table; a shared test vector asserts they agree.
+Constants live in exactly two source files — one Go (`server/internal/trust/constants.go`), one TypeScript (`packages/core/src/constants.ts`, shared by client and simlab) — plus this table; a shared test vector asserts all three agree.
+
+**Tuning:** the values above are *reference defaults*, tuned via **simlab** (design §16) — a constant change without a cited, checked-in simlab scenario is rejected in review. **Instances:** each instance publishes the constants it actually runs via `GET /api/v1/meta`; clients compute with the instance's values and visibly badge deviations from this table. The §5 invariants are not constants — they are code, identical on every non-forked instance.

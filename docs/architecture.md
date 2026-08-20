@@ -4,7 +4,7 @@
 
 ## System shape
 
-Two deployable components, one repo:
+Two deployable components plus one dev/governance tool, one repo:
 
 ```
 ┌──────────────────────────────┐        ┌──────────────────────────────┐
@@ -26,6 +26,12 @@ The trust boundary is absolute and is the whole point of the project:
 - **The client is the security perimeter.** Private keys never leave the browser except as user-initiated, client-side-encrypted export blobs. All tier-2/3 plaintext exists only client-side.
 - **The server stores signed records and ciphertext.** It verifies signatures and device-cert chains on ingest (defense in depth, not a trust root), computes *candidate* feed rankings, and serves graph slices. It can withhold and reorder; it can never read tier-2/3 content or forge records.
 - **Server proposes, client verifies** (design §3.3): the server returns candidate-ranked feeds; the client recomputes `effective_trust` locally and nothing renders as trusted unless the client's own math agrees.
+
+The third component, **`simlab/`** (design §16), is not deployed: a simulator that imports the same `packages/core` trust/budget math the client ships, runs it over synthetic populations, and charts how constant changes move reach. It is the mechanism by which constants get tuned and attack scenarios get red-teamed; scenario files are checked in and cited in constant-change PRs.
+
+## Deployment model: instances (design §15)
+
+One codebase, many instances. The project runs the **primary instance**; anyone can stand up their own from the same source, and **no code path may privilege the primary** (no hardcoded URLs, no blessed keys — enforced in review). An instance is one `runad` + one database + a web build pointed at it; instances are independent networks in v1 (identity keys are portable, graph/content/standing are per-instance; federation deferred — see [`self-hosting.md`](self-hosting.md)). Every instance self-describes via `GET /api/v1/meta`, publishing its versions and running constants; clients compute with instance-published constants and badge deviations from the reference defaults.
 
 ## Technology choices
 
@@ -51,6 +57,8 @@ runa/
 │   ├── trust-and-reach.md #   design §9 doc 3 — the math + constants table
 │   ├── governance.md      #   design §9 doc 4
 │   ├── poc-plan.md        # phased plan with task checklists — agents start here
+│   ├── self-hosting.md    # instance model & operator constraints
+│   ├── explainers/        # plain-language reach & crypto explainers (updated with algorithm changes)
 │   └── decisions/         # ADRs
 ├── server/                # Go module: github.com/VenatioDecorus/runa/server
 │   ├── cmd/runad/         #   server entrypoint
@@ -58,19 +66,23 @@ runa/
 │       ├── api/           #   HTTP handlers (stdlib mux, /api/v1/...)
 │       ├── store/         #   storage interface + SQLite impl + embedded migrations
 │       ├── record/        #   record parsing, JCS canonicalization, sig/cert-chain verification
-│       └── trust/         #   server-side candidate ranking (mirror of client math)
-├── web/                   # Vite + React + TypeScript
+│       └── trust/         #   server-side candidate ranking (mirror of core math)
+├── packages/
+│   └── core/              # framework-free TS protocol core: records/canonicalization,
+│                          #   trust math, budget math, published constants (ADR-0006)
+├── web/                   # Vite + React + TypeScript client (imports packages/core)
 │   └── src/
 │       ├── crypto/        #   keys, envelopes, recovery kit (no React imports — pure, testable)
-│       ├── records/       #   record building/canonicalization (mirrors server/internal/record)
 │       ├── store/         #   IndexedDB (device keys, working root copy, cache)
-│       ├── trust/         #   client-side trust computation & re-ranking
-│       ├── api/           #   typed API client
+│       ├── api/           #   typed API client (instance base URL is config)
 │       └── ui/            #   components, routes
-└── Makefile               # dev/test/lint entrypoints for both halves
+├── simlab/                # simulator (imports packages/core): browser UI + headless CLI
+│   ├── src/population/    #   graph generators & cohort models (seeded, deterministic)
+│   └── scenarios/         #   checked-in scenario JSON — cited in constant-change PRs
+└── Makefile               # dev/test/lint entrypoints for all of the above
 ```
 
-Two places intentionally implement the same logic twice (client and server): record canonicalization/verification, and the trust computation. This duplication is **by design** — client-side re-verification is the audit mechanism (design §1.7, §3.3). Cross-implementation test vectors (shared JSON fixtures in `docs/protocol/vectors/`, consumed by both test suites) keep them honest.
+Two places intentionally implement the same logic twice (`packages/core` in TS, `server/internal` in Go): record canonicalization/verification, and the trust/budget math. This duplication is **by design** — client-side re-verification is the audit mechanism (design §1.7, §3.3). Cross-implementation test vectors (shared JSON fixtures in `docs/protocol/vectors/`, consumed by both test suites) keep them honest, and simlab exercising `packages/core` means simulation results describe the code the client actually ships.
 
 ## Data flow examples
 
@@ -93,3 +105,5 @@ From design §1; violations are protocol changes requiring explicit sign-off, ne
 5. Trust inputs are deliberate acts only (follow, mute) — never behavioral signals.
 6. Verification/attestation never gates capability (TOFU everywhere).
 7. All algorithms and signal types are public; the only unpublished values are operational friction thresholds, and that boundary is disclosed.
+8. No primary-instance privilege in code; instances publish their running constants via `/meta` (design §15).
+9. Published constants change only with a cited simlab scenario (design §16); explainer docs update in the same PR as any algorithm or crypto change.
