@@ -6,6 +6,8 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/VenatioDecorus/runa/server/internal/store"
 	"github.com/VenatioDecorus/runa/server/internal/trust"
@@ -23,13 +25,26 @@ type Config struct {
 type server struct {
 	st  *store.Store
 	cfg Config
+
+	// Outstanding auth challenges (single-use, short-lived). In-memory is
+	// deliberate: a restart invalidating unanswered challenges is harmless.
+	mu         sync.Mutex
+	challenges map[string]time.Time
 }
 
 func New(st *store.Store, cfg Config) http.Handler {
-	s := &server{st: st, cfg: cfg}
+	s := &server{st: st, cfg: cfg, challenges: make(map[string]time.Time)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/healthz", s.handleHealthz)
 	mux.HandleFunc("GET /api/v1/meta", s.handleMeta)
+	mux.HandleFunc("POST /api/v1/accounts", s.handleCreateAccount)
+	mux.HandleFunc("GET /api/v1/accounts/{id}", s.handleGetAccount)
+	mux.HandleFunc("GET /api/v1/accounts/{id}/records", s.handleListRecords)
+	mux.HandleFunc("POST /api/v1/records", s.handleIngestRecord)
+	mux.HandleFunc("GET /api/v1/auth/challenge", s.handleAuthChallenge)
+	mux.HandleFunc("POST /api/v1/auth/session", s.handleAuthSession)
+	mux.HandleFunc("POST /api/v1/backup", s.handleUpsertBackup)
+	mux.HandleFunc("GET /api/v1/backup/{account}", s.handleGetBackup)
 	return mux
 }
 

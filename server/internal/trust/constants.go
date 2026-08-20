@@ -22,14 +22,14 @@ const (
 // GET /api/v1/meta and asserted by the constants protocol vector.
 func Constants() map[string]any {
 	return map[string]any{
-		"hop_cap":                HopCap,
-		"per_hop_decay":          PerHopDecay,
-		"multi_path_sum_cap":     MultiPathSumCap,
-		"feed_surface_threshold": FeedSurfaceThreshold,
+		"hop_cap":                 HopCap,
+		"per_hop_decay":           PerHopDecay,
+		"multi_path_sum_cap":      MultiPathSumCap,
+		"feed_surface_threshold":  FeedSurfaceThreshold,
 		"standing_half_life_days": StandingHalfLifeDays,
-		"cold_budget_open":       ColdBudgetOpen,
-		"cold_budget_invite":     ColdBudgetInvite,
-		"budget_carryover_days":  BudgetCarryoverDays,
-		"epoch_max_age_days":     EpochMaxAgeDays,
+		"cold_budget_open":        ColdBudgetOpen,
+		"cold_budget_invite":      ColdBudgetInvite,
+		"budget_carryover_days":   BudgetCarryoverDays,
+		"epoch_max_age_days":      EpochMaxAgeDays,
 	}
 }
