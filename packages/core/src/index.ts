@@ -1,1 +1,22 @@
 export { CONSTANTS, type Constants } from "./constants.js";
+export { b64url, utf8 } from "./encoding.js";
+export { canonicalize, assertNoFloats } from "./jcs.js";
+export {
+  PROTOCOL_V,
+  ROOT_SIGNED_TYPES,
+  type RunaRecord,
+  nowTimestamp,
+  signingBytes,
+  signRecord,
+  validateShape,
+  verifySignature,
+  recordId,
+} from "./records.js";
+export {
+  type DeviceCert,
+  type DeviceRevoke,
+  verifyDeviceCert,
+  verifyDeviceRevoke,
+  verifyDeviceBinding,
+  verifyAuthoredRecord,
+} from "./certs.js";

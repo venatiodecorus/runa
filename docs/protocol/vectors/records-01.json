@@ -1,0 +1,126 @@
+{
+  "description": "Signed-record verification cases. Keys are derived from the given hex seeds (test keys only). `certs`/`revocations` are context for chain verification. Each case: verify record; expect `valid`; for valid device-signed records also expect signing_bytes and (where given) record chain acceptance.",
+  "seeds": {
+    "root_ed25519": "1111111111111111111111111111111111111111111111111111111111111111",
+    "device_ed25519": "2222222222222222222222222222222222222222222222222222222222222222",
+    "device_x25519": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "keys": {
+    "account_id": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+    "device_id": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+    "device_kex_pub": "ew1H2TQn-DERYHgcfHM_2J-IlwrvSQ2KoO4ZpMuKGxQ"
+  },
+  "certs": [
+    {
+      "v": 1,
+      "type": "device-cert",
+      "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+      "created_at": "2026-08-20T12:00:00Z",
+      "device_sign_pub": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+      "device_kex_pub": "ew1H2TQn-DERYHgcfHM_2J-IlwrvSQ2KoO4ZpMuKGxQ",
+      "sig": "QqeFztUkN0Vhv9oV1hL8h66765yIqXJ-d9X6ODk539XaSGNuafEct8EKCJqYEK578kw_h8HQK_-3ct8Ju_4nBQ"
+    }
+  ],
+  "revocations": [
+    {
+      "v": 1,
+      "type": "device-revoke",
+      "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+      "created_at": "2026-08-21T00:00:00Z",
+      "device_sign_pub": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+      "sig": "3b3JblFiDH6J8oJ8QaSclZySy1f0pjFctU5GWf5hHvCTODm0S81KCTvE24fbkELac0c4gdJ7fOYsMGOmZkDSBg"
+    }
+  ],
+  "cases": [
+    {
+      "name": "valid device-cert (root-signed)",
+      "record": {
+        "v": 1,
+        "type": "device-cert",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "created_at": "2026-08-20T12:00:00Z",
+        "device_sign_pub": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "device_kex_pub": "ew1H2TQn-DERYHgcfHM_2J-IlwrvSQ2KoO4ZpMuKGxQ",
+        "sig": "QqeFztUkN0Vhv9oV1hL8h66765yIqXJ-d9X6ODk539XaSGNuafEct8EKCJqYEK578kw_h8HQK_-3ct8Ju_4nBQ"
+      },
+      "valid": true,
+      "check": "signature"
+    },
+    {
+      "name": "valid post with cert chain, pre-revocation",
+      "record": {
+        "v": 1,
+        "type": "post",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-20T12:00:00Z",
+        "body": "hello runa",
+        "sig": "mMj17vRVLznomMAKk8wZlVuRJdXtQUpulkWMRJ82RC2qKQGo4nxdpZ1RqB2fPvoPOrtyHZNWgLdG2tpVummPAw"
+      },
+      "valid": true,
+      "check": "chain",
+      "signing_bytes_utf8": "{\"author\":\"0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc\",\"body\":\"hello runa\",\"created_at\":\"2026-08-20T12:00:00Z\",\"device\":\"oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA\",\"type\":\"post\",\"v\":1}"
+    },
+    {
+      "name": "tampered body",
+      "record": {
+        "v": 1,
+        "type": "post",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-20T12:00:00Z",
+        "body": "evil",
+        "sig": "mMj17vRVLznomMAKk8wZlVuRJdXtQUpulkWMRJ82RC2qKQGo4nxdpZ1RqB2fPvoPOrtyHZNWgLdG2tpVummPAw"
+      },
+      "valid": false,
+      "check": "signature",
+      "reason": "signature must fail after tamper"
+    },
+    {
+      "name": "post created after device revocation",
+      "record": {
+        "v": 1,
+        "type": "post",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-21T00:00:01Z",
+        "body": "too late",
+        "sig": "TM-Ceu-DD9a90JpGvYaf2vx3u1E9QZSwvQUgVoVP4DfnaREniiHi5npCFHHtUsAxoa72z2snKLrcpa5SkLd-CA"
+      },
+      "valid": false,
+      "check": "chain",
+      "reason": "revocation predates record"
+    },
+    {
+      "name": "float smuggled into signed record",
+      "record": {
+        "v": 1,
+        "type": "post",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-20T12:00:00Z",
+        "body": "hello runa",
+        "sig": "mMj17vRVLznomMAKk8wZlVuRJdXtQUpulkWMRJ82RC2qKQGo4nxdpZ1RqB2fPvoPOrtyHZNWgLdG2tpVummPAw",
+        "score": 0.5
+      },
+      "valid": false,
+      "check": "signature",
+      "reason": "ADR-0005: no non-integer numbers in signed records"
+    },
+    {
+      "name": "millisecond timestamp rejected",
+      "record": {
+        "v": 1,
+        "type": "post",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-20T12:00:00.123Z",
+        "body": "hello runa",
+        "sig": "mMj17vRVLznomMAKk8wZlVuRJdXtQUpulkWMRJ82RC2qKQGo4nxdpZ1RqB2fPvoPOrtyHZNWgLdG2tpVummPAw"
+      },
+      "valid": false,
+      "check": "signature",
+      "reason": "created_at must be second-precision Z"
+    }
+  ]
+}

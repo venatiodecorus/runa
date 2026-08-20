@@ -1,0 +1,14 @@
+{
+  "description": "Published reference constants. Go (trust.Constants()), TS (CONSTANTS), and docs/trust-and-reach.md §6 must all match.",
+  "constants": {
+    "hop_cap": 2,
+    "per_hop_decay": 0.35,
+    "multi_path_sum_cap": 2,
+    "feed_surface_threshold": 0.3,
+    "standing_half_life_days": 30,
+    "cold_budget_open": 5,
+    "cold_budget_invite": 15,
+    "budget_carryover_days": 2,
+    "epoch_max_age_days": 30
+  }
+}

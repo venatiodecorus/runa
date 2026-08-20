@@ -97,6 +97,15 @@ Per design §7.1(3): sender's client enumerates the concrete recipient set local
 Base path `/api/v1`. JSON. Errors: `{"error": {"code": "<machine code>", "message": "..."}}`.
 Auth: signup is open (`POST /accounts` with root pubkey + first device cert). Session auth for subsequent calls = signed challenge: `GET /auth/challenge` → client signs it with a certified device key → short-lived token. No passwords anywhere.
 
+**v1 request/response shapes (PoC-normative):**
+
+- `POST /accounts` body `{"root_pub": "<account id>", "device_cert": <device-cert record>}` → `201 {"account": "<id>"}`. Cert must be root-signed by `root_pub`.
+- `GET /accounts/{id}` → `{"account", "profile": <latest profile record or null>, "device_certs": [...], "device_revocations": [...], "follower_count"}`.
+- `POST /records` body = one signed record → `201 {"id": "<record id>"}`. Phase-1 accepted types: `post`, `profile`, `device-cert`, `device-revoke` (device adds/revocations flow through here). Unknown types → `400 unknown_type`. Verification failure → `400 invalid_record` / `403 revoked_device`.
+- `GET /accounts/{id}/records?type=post&limit=50&before=<created_at>` → `{"records": [...], "next_before": "<created_at or null>"}`, reverse-chronological.
+- `GET /auth/challenge` → `{"challenge": "<b64url 32 bytes>", "expires_at"}`. `POST /auth/session` body `{"account", "device", "challenge", "sig"}` where `sig` = Ed25519 over `utf8("runa-auth-v1:" + challenge)` by a certified, unrevoked device → `{"token", "expires_at"}`. Subsequent authenticated calls send `Authorization: Bearer <token>`.
+- `POST /backup` (auth) body `{"blob": <passphrase-backup object, §7>}` → `204`; one blob per account, overwrite allowed. `GET /backup/{account}` → `{"blob"}` or `404`. **PoC caveat:** backup fetch is deliberately unauthenticated — the recovering user has no device to sign with; the blob is Argon2id-encrypted client-side, and account IDs are public. This widens the brute-force exposure from "the operator" to "anyone" and is flagged in the threat model; revisit before production (e.g., rate limits, proof-of-possession of the word list).
+
 | Endpoint | Purpose |
 |---|---|
 | `GET /meta` | instance self-description: `{name, software_version, protocol_version, constants: {…}}` — unauthenticated; clients compute trust with these values and badge deviations from reference defaults (design §15) |

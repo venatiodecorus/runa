@@ -1,0 +1,59 @@
+{
+  "description": "RFC 8785 canonicalization cases. Both implementations must produce `canonical` from `input`.",
+  "cases": [
+    {
+      "name": "sorted keys",
+      "input": {
+        "b": 1,
+        "a": 2
+      },
+      "canonical": "{\"a\":2,\"b\":1}"
+    },
+    {
+      "name": "utf16 code unit order",
+      "input": {
+        "é": 1,
+        "z": 2
+      },
+      "canonical": "{\"z\":2,\"é\":1}"
+    },
+    {
+      "name": "nesting and arrays",
+      "input": {
+        "a": [
+          3,
+          1,
+          {
+            "c": null,
+            "b": true
+          }
+        ]
+      },
+      "canonical": "{\"a\":[3,1,{\"b\":true,\"c\":null}]}"
+    },
+    {
+      "name": "string escapes",
+      "input": {
+        "s": "a\"b\n\u0007"
+      },
+      "canonical": "{\"s\":\"a\\\"b\\n\\u0007\"}"
+    },
+    {
+      "name": "integers",
+      "input": {
+        "zero": 0,
+        "big": 9007199254740991,
+        "neg": -42
+      },
+      "canonical": "{\"big\":9007199254740991,\"neg\":-42,\"zero\":0}"
+    },
+    {
+      "name": "empty containers",
+      "input": {
+        "a": {},
+        "b": []
+      },
+      "canonical": "{\"a\":{},\"b\":[]}"
+    }
+  ]
+}
