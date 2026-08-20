@@ -1,0 +1,9 @@
+{
+  "name": "runa",
+  "private": true,
+  "workspaces": [
+    "packages/core",
+    "web",
+    "simlab"
+  ]
+}

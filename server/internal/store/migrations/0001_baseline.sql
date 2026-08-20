@@ -1,0 +1,1 @@
+-- 0001: empty baseline. Real tables land with Phase 1 (accounts, records, devices).

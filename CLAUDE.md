@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Runa** — a privacy-respecting social network where reach (not posting) is the rationed resource, trust is computed subjectively from each viewer's position in the follow graph, and private content is protected by client-side cryptography. The server is a dumb, honest-but-curious mailbox.
 
-**Current state: pre-code.** Docs and plans are complete; no server/ or web/ code exists yet. Implementation work starts at `docs/poc-plan.md` **Phase 0** and proceeds top-to-bottom, checking off tasks in that file as you go — it is the shared work ledger between sessions.
+**Current state: implementation in progress.** `docs/poc-plan.md` is the shared work ledger between sessions — its checkboxes are the source of truth for what's done; work proceeds phase by phase, checking off tasks as they land.
 
 ## Reading order for a new session
 
@@ -17,7 +17,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-No build exists yet. Phase 0 of `docs/poc-plan.md` creates a root `Makefile` with `dev` / `test` / `lint` targets covering both halves (Go: `go test ./...`, `go vet`; web: Vitest, `tsc --noEmit`). **When Phase 0 lands, replace this section with the real, verified commands** — including how to run a single Go test (`go test ./internal/... -run TestName`) and a single Vitest file.
+Run `npm install` once at the repo root (npm workspaces). Then, from the root:
+
+- `make dev` — API server (`:8080`) + web dev server (Vite, proxies `/api`); `make simlab` — simulator dev server.
+- `make test` — Go (`go test ./...` in `server/`) + Vitest across all TS workspaces.
+- `make lint` — `go vet` + `tsc --noEmit` per workspace.
+- `make vectors-test` — just the cross-implementation protocol-vector tests.
+- Single Go test: `cd server && go test ./internal/api/ -run TestMeta`. Single TS test file: `npm run test -w packages/core -- --run <file-or-pattern>` (any workspace).
+- Server binary: `cd server && go build ./cmd/runad`; flags `-addr`, `-db`, `-instance-name` (env: `RUNAD_ADDR`, `RUNAD_DB`, `RUNAD_INSTANCE_NAME`).
 
 ## Architecture (big picture)
 
