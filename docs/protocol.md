@@ -1,0 +1,124 @@
+# Protocol Specification
+
+**Status:** v0.1 (PoC-normative for M1–M3; §§ marked *outline* are direction, not yet normative).
+**Bar (design §9):** a third party can build an independent client from this document. Until test vectors exist, that bar is unmet — writing vectors is part of each implementing milestone.
+**Versioning rule:** every record and envelope carries `v` (integer) and, for envelopes, `alg`. Implementations MUST reject unknown `v`/`alg` rather than guess. Changes to this file follow the same review process as code.
+
+## 1. Primitives (v1)
+
+| Purpose | Algorithm | Notes |
+|---|---|---|
+| Signatures | Ed25519 | root and device signing keys |
+| Key agreement | X25519 | device kex keys, ephemeral senders |
+| KDF (key agreement) | HKDF-SHA-256 | context strings below |
+| AEAD | XChaCha20-Poly1305 | 24-byte nonce, random |
+| Hash / fingerprints | SHA-256 | |
+| Password KDF | Argon2id | recovery-kit passphrase backup; params in §7 |
+| Mnemonics | BIP39, English wordlist | 32-byte root seed → 24 words |
+| Encoding (binary-in-JSON) | base64url, no padding | RFC 4648 §5 |
+| Canonicalization | JCS (RFC 8785) | UTF-8, sorted keys, no insignificant whitespace |
+
+## 2. Identity & naming
+
+- **Root key:** Ed25519 keypair, generated client-side from a 32-byte seed (the seed is what the recovery kit encodes). Signs *only* device certificates and device revocations. Never signs content.
+- **Account ID:** `base64url(root_public_key)` — 43 chars. The pubkey *is* the identity; there is no server-assigned ID. Display names/handles are non-unique profile metadata (a signed `profile` record), never identifiers.
+- **Fingerprint (for UI / QR / safety numbers):** SHA-256 of the root public key, rendered per client convention (e.g., grouped hex or numeric safety-number form). Not used on the wire.
+- **Device keys:** per device/browser-profile, self-generated: one Ed25519 signing keypair + one X25519 kex keypair. **Device ID:** `base64url(device_signing_public_key)`. Devices do all operational work: sign records, receive wrapped keys.
+
+## 3. Signed records
+
+All server-stored user data is a **record**: a JSON object signed by a device key (device certs and revocations are signed by the root instead).
+
+```jsonc
+{
+  "v": 1,
+  "type": "<record type>",
+  "author": "<account id>",            // root pubkey, base64url
+  "device": "<device id>",             // signing device pubkey; ABSENT on root-signed records
+  "created_at": "<RFC 3339 UTC, e.g. 2026-08-20T12:00:00Z>",
+  // ...type-specific fields...
+  "sig": "<base64url Ed25519 signature>"
+}
+```
+
+**Signing:** remove `sig`, canonicalize the remainder with JCS, sign those bytes. **Record ID:** `base64url(SHA-256(canonical bytes including sig))` — content-addressed, computed, never chosen.
+
+**Verification (client and server MUST both implement):** signature valid for the stated key; if device-signed, a valid device cert chains the device to `author`'s root and no revocation for that device predates trust in the record. Server verifies on ingest as hygiene; clients verify everything they render — the client is the authority.
+
+### 3.1 Record types (v1)
+
+| `type` | Signer | Server visibility | Fields beyond common |
+|---|---|---|---|
+| `device-cert` | root | public | `device_sign_pub`, `device_kex_pub`, `name` (user label, optional) |
+| `device-revoke` | root | public | `device_sign_pub` |
+| `profile` | device | public | `display_name`, `bio` (both optional) |
+| `post` | device | public (tier 1) | `body` (UTF-8 text, PoC), `reply_to` (record ID, optional) |
+| `follow` | device | follower-visible (§6) | `subject` (account id) |
+| `unfollow` | device | follower-visible | `subject` |
+| `mute` / `unmute` | device | **private to author** — stored server-side (server sees the graph regardless, design §8) but never served to any other user | `subject` |
+| `dm` | device | ciphertext only | envelope of §4 as the record body |
+| `attestation` | device | public *(outline — M6)* | `subject`, `subject_root_pub`, `method` |
+
+Later-milestone types (`report`, `invite`, epoch records) are reserved; do not improvise formats — extend this spec first.
+
+## 4. Tier-2 envelope v1 (stateless hybrid)
+
+Chosen over double ratchet for v1 because browser storage loss is routine and breaks ratchet sessions (design §7.1). `alg` and `v` fields make double ratchet a versioned, per-conversation, opportunistic upgrade later.
+
+Encryption of plaintext `P` from sender device `S` to recipient *devices* `D1..Dn` (recipient device list read from their signed, unrevoked device certs — both participants' devices are recipients, so the sender's other devices can read the conversation):
+
+1. Generate random 32-byte content key `K`; random 24-byte nonce `N`.
+2. `ciphertext = XChaCha20-Poly1305(key=K, nonce=N, plaintext=P, aad=canonical header)` where the header is the envelope minus `recipients`, `ciphertext`, `sig`.
+3. For each recipient device `Di` (kex pub `Ri`): generate ephemeral X25519 pair `(e_i, E_i)`; `ss = X25519(e_i, Ri)`; `wrap_key = HKDF-SHA256(ikm=ss, salt=E_i ∥ Ri, info="runa/v1/dm-wrap")`; `wrapped = XChaCha20-Poly1305(key=wrap_key, nonce=random, plaintext=K)`.
+4. Envelope (as the body of a `dm` record, signed by the sender's device key like any record):
+
+```jsonc
+{
+  "v": 1, "type": "dm", "alg": "x25519-hkdf-sha256+xchacha20poly1305",
+  "author": "...", "device": "...", "created_at": "...",
+  "to": "<recipient account id>",          // routing hint for the mailbox; server needs it anyway (threat model: metadata conceded)
+  "nonce": "<b64url N>",
+  "recipients": [ { "device": "<Di id>", "eph_pub": "<b64url E_i>", "wrap_nonce": "...", "wrapped_key": "..." } ],
+  "ciphertext": "<b64url>",
+  "sig": "..."
+}
+```
+
+Decryption: find own device in `recipients`, unwrap `K`, verify AEAD (the AAD binds the header, so a tampered `to`/`author` makes decryption fail; decryption failures are rendered as hard errors, never as content). Signature verification is REQUIRED before rendering; encryption without a valid signature is spoofable ciphertext.
+
+Plaintext `P` is itself a small JSON: `{"body": "...", "conversation": "<sorted account ids joined by ':'>"}` — binding the conversation inside the AEAD prevents cross-conversation replay of ciphertext.
+
+## 5. Tier-3 web-scoped posts *(outline — M5)*
+
+Per design §7.1(3): sender's client enumerates the concrete recipient set locally ("My follows" = hop 1, "My web" = hop 2 above threshold), generates a random epoch key, distributes it once per recipient device over the tier-2 channel, and posts reference `epoch_id`. Rotate on membership change + max age 30 days. Snapshot semantics per design §7.2. Formats to be specified before M5 begins.
+
+## 6. Server API (v1, PoC surface)
+
+Base path `/api/v1`. JSON. Errors: `{"error": {"code": "<machine code>", "message": "..."}}`.
+Auth: signup is open (`POST /accounts` with root pubkey + first device cert). Session auth for subsequent calls = signed challenge: `GET /auth/challenge` → client signs it with a certified device key → short-lived token. No passwords anywhere.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /accounts` | create account: root pubkey + initial `device-cert` |
+| `GET /accounts/{id}` | profile, device certs/revocations, follower **count** |
+| `POST /records` | submit any signed record; server verifies before storing |
+| `GET /accounts/{id}/records?type=post&…` | an account's public records (paginated) |
+| `GET /accounts/{id}/follows` | outbound follow list — requester must be a follower of `{id}` or `{id}` has opted up to public (design §8) |
+| `GET /feed` | candidate-ranked feed for the authenticated account (server *proposes*) |
+| `GET /graph/2hop` | the authenticated viewer's entitled slice: own follows' follow lists — the input to client-side trust computation |
+| `GET /dm/inbox`, `GET /dm/with/{id}` | ciphertext mailbox |
+
+The graph-visibility rules of design §8 are enforced here and only here matter server-side: outbound follows are follower-visible (opt-up to public), inbound lists are count-only to others, mutes are never served to anyone but their author.
+
+## 7. Recovery kit (M1)
+
+Presented once at signup (export-at-birth), re-exportable anytime:
+
+- **Key file:** JSON `{"v":1,"kind":"runa-root-key","account":"<id>","seed":"<b64url 32 bytes>","created_at":"..."}`, downloaded — never sent to the server.
+- **Word list:** BIP39 24-word encoding of the same seed.
+- **Passphrase backup (optional, design §2.4):** blob = XChaCha20-Poly1305 over the key-file JSON, key = Argon2id(passphrase, salt=random 16B, m=64 MiB, t=3, p=1); `{v, salt, params, nonce, ciphertext}` may be stored server-side (`POST /backup`). Server stores it blind. UI must state the brute-force-target caveat for high-value accounts.
+- Import of any of the three forms → root in memory → sign a fresh device cert → session live. Target: re-enrollment ≈ 30 seconds.
+
+## 8. Test vectors
+
+`docs/protocol/vectors/*.json` (created per milestone): JCS canonicalization cases, signed records (valid + tampered), a full tier-2 envelope with all private keys given, recovery-kit seed↔words. Both the Go and TypeScript test suites consume the same files. A vector-less format change is an unreviewable format change — reject in review.

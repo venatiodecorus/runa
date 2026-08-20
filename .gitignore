@@ -1,0 +1,19 @@
+# Go
+server/runad
+*.test
+*.out
+
+# Node / web
+node_modules/
+web/dist/
+*.local
+
+# Local databases & runtime state
+*.db
+*.db-wal
+*.db-shm
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
