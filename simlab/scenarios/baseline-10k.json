@@ -1,0 +1,12 @@
+{
+  "name": "baseline-10k",
+  "description": "Reference population: a small-world honest core, a wave of genuine newcomers, and a 200-account Sybil ring with 5 bridge edges. The baseline every constant-change PR cites first.",
+  "seed": 1,
+  "graphModel": "small-world",
+  "days": 30,
+  "cohorts": [
+    { "name": "core", "kind": "honest", "count": 9000, "meanFollows": 20, "coldPerDay": 0.2 },
+    { "name": "newcomers", "kind": "newcomer", "count": 800, "targetFollowers": 12, "coldPerDay": 1 },
+    { "name": "sybils", "kind": "sybil-ring", "count": 200, "bridges": 5 }
+  ]
+}

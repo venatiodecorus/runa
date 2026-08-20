@@ -1,0 +1,11 @@
+{
+  "name": "sybil-stress",
+  "description": "Red-team: a Sybil ring the size of a fifth of the honest graph, with 50 bridge edges. Expected result: ring reach stays confined to the ring regardless of bridge count — if tuning ever changes that, the change is wrong.",
+  "seed": 7,
+  "graphModel": "random",
+  "days": 30,
+  "cohorts": [
+    { "name": "honest", "kind": "honest", "count": 2000, "meanFollows": 15, "coldPerDay": 0.2 },
+    { "name": "ring", "kind": "sybil-ring", "count": 400, "bridges": 50 }
+  ]
+}
