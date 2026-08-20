@@ -16,6 +16,7 @@ import { CONSTANTS } from "../src/constants.js";
 import { b64url } from "../src/encoding.js";
 import { canonicalize } from "../src/jcs.js";
 import { signRecord, signingBytes } from "../src/records.js";
+import { subjectiveTrust } from "../src/trust.js";
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), "../../../docs/protocol/vectors");
 
@@ -89,6 +90,48 @@ it("regenerates protocol vectors", () => {
       { name: "float smuggled into signed record", record: { ...post, score: 0.5 }, valid: false, check: "signature", reason: "ADR-0005: no non-integer numbers in signed records" },
       { name: "millisecond timestamp rejected", record: { ...post, created_at: "2026-08-20T12:00:00.123Z" }, valid: false, check: "signature", reason: "created_at must be second-precision Z" },
     ],
+  });
+
+  // --- trust-graph-01: subjective trust over fixture graphs ---------------
+  const trustCases = [
+    { name: "direct follow", graph: { follows: { V: ["A"] } }, viewer: "V", author: "A", trust: 1.0 },
+    { name: "single 2-hop path", graph: { follows: { V: ["A"], A: ["B"] } }, viewer: "V", author: "B", trust: 0.35 },
+    { name: "beyond hop cap", graph: { follows: { V: ["A"], A: ["B"], B: ["C"] } }, viewer: "V", author: "C", trust: 0 },
+    {
+      name: "paths sum: direct + two vouches",
+      graph: { follows: { V: ["A", "M1", "M2"], M1: ["A"], M2: ["A"] } },
+      viewer: "V", author: "A", trust: 1.7,
+    },
+    {
+      name: "sum caps at 2.0",
+      graph: { follows: { V: ["A", "M1", "M2", "M3", "M4"], M1: ["A"], M2: ["A"], M3: ["A"], M4: ["A"] } },
+      viewer: "V", author: "A", trust: 2.0,
+    },
+    {
+      name: "muted author is hard zero",
+      graph: { follows: { V: ["A", "M"], M: ["A"] }, mutes: ["A"] },
+      viewer: "V", author: "A", trust: 0,
+    },
+    {
+      name: "mute prunes propagation",
+      graph: { follows: { V: ["M", "A"], M: ["B"], A: ["B"] }, mutes: ["M"] },
+      viewer: "V", author: "B", trust: 0.35,
+    },
+    {
+      name: "mixed graph, hop-1 plus vouch",
+      graph: { follows: { V: ["A", "B", "M"], A: ["B", "C"], B: ["C"], M: ["C"] }, mutes: ["M"] },
+      viewer: "V", author: "B", trust: 1.35,
+    },
+  ];
+  for (const c of trustCases) {
+    const got = subjectiveTrust(c.viewer, c.author, c.graph);
+    if (Math.abs(got - c.trust) > 1e-9) throw new Error(`trust self-check failed: ${c.name}: ${got}`);
+  }
+  write("trust-graph-01.json", {
+    description:
+      "Subjective trust cases (docs/trust-and-reach.md §1), reference constants (decay 0.35, cap 2.0). " +
+      "Implementations must produce `trust` within 1e-9 for (viewer, author) over `graph`.",
+    cases: trustCases,
   });
 
   // --- constants-01: cross-implementation constants agreement -------------

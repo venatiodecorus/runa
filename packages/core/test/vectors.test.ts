@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { CONSTANTS } from "../src/constants.js";
+import { subjectiveTrust } from "../src/trust.js";
 import { canonicalize } from "../src/jcs.js";
 import { verifySignature, type RunaRecord } from "../src/records.js";
 import { verifyAuthoredRecord, type DeviceCert, type DeviceRevoke } from "../src/certs.js";
@@ -38,6 +39,15 @@ describe("vectors: records-01", () => {
       } else {
         expect(verify).toThrow();
       }
+    });
+  }
+});
+
+describe("vectors: trust-graph-01", () => {
+  const { cases } = load("trust-graph-01.json");
+  for (const c of cases) {
+    it(c.name, () => {
+      expect(subjectiveTrust(c.viewer, c.author, c.graph)).toBeCloseTo(c.trust, 9);
     });
   }
 });

@@ -13,6 +13,15 @@ export {
   recordId,
 } from "./records.js";
 export {
+  type GraphView,
+  type TrustConstants,
+  type FeedBucket,
+  subjectiveTrust,
+  trustMap,
+  effectiveTrust,
+  feedBucket,
+} from "./trust.js";
+export {
   type DeviceCert,
   type DeviceRevoke,
   verifyDeviceCert,
