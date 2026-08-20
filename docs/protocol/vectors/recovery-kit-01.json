@@ -1,0 +1,7 @@
+{
+  "description": "Recovery-kit seed encodings (protocol §7). All values derive from the 32-byte seed given as seed_hex (a test seed, never a real one): seed_b64url is its base64url (no padding); mnemonic is its exact BIP39 24-word English encoding (entropy → words); account is base64url(Ed25519 pubkey derived from the seed). Implementations must reproduce mnemonic from the seed AND recover the seed from the mnemonic. Argon2id passphrase-backup cases are deliberately absent (spec params too heavy for a fixture).",
+  "seed_hex": "4444444444444444444444444444444444444444444444444444444444444444",
+  "seed_b64url": "REREREREREREREREREREREREREREREREREREREREREQ",
+  "mnemonic": "dust captain baby mass dust captain baby mass dust captain baby mass dust captain baby mass dust captain baby mass dust captain baby number",
+  "account": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg"
+}

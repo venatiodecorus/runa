@@ -1,13 +1,36 @@
-// Typed API client. The instance base URL is configuration (design §15) —
-// same-origin (dev proxy / runad-served static build) unless VITE_API_BASE
-// points elsewhere. The client must work against any instance.
-export const API_BASE: string = import.meta.env.VITE_API_BASE ?? "";
+/**
+ * Typed API client (docs/protocol.md §6). The instance base URL is
+ * configuration (design §15) — same-origin (dev proxy / runad-served static
+ * build) unless VITE_API_BASE points elsewhere. The client must work against
+ * any instance.
+ *
+ * Framework-free: no React imports. The session token lives in module memory
+ * only — never in IndexedDB or localStorage.
+ */
+import type { DeviceCert, DeviceRevoke, RunaRecord } from "@runa/core";
+import type { PassphraseBackup } from "../crypto/recoverykit.js";
+
+export const API_BASE: string =
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE) || "";
 
 export interface InstanceMeta {
   name: string;
   software_version: string;
   protocol_version: string;
   constants: Record<string, number>;
+}
+
+export interface AccountInfo {
+  account: string;
+  profile: RunaRecord | null;
+  device_certs: DeviceCert[];
+  device_revocations: DeviceRevoke[];
+  follower_count: number;
+}
+
+export interface RecordPage {
+  records: RunaRecord[];
+  next_before: string | null;
 }
 
 export class ApiError extends Error {
@@ -20,8 +43,27 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const resp = await fetch(`${API_BASE}/api/v1${path}`, init);
+// --- session token (memory only) -------------------------------------------
+
+let sessionToken: string | null = null;
+
+export function setSessionToken(token: string | null): void {
+  sessionToken = token;
+}
+
+export function hasSession(): boolean {
+  return sessionToken !== null;
+}
+
+async function request<T>(path: string, init?: RequestInit & { auth?: boolean }): Promise<T> {
+  const headers = new Headers(init?.headers);
+  if (init?.body !== undefined && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (init?.auth && sessionToken !== null) {
+    headers.set("Authorization", `Bearer ${sessionToken}`);
+  }
+  const resp = await fetch(`${API_BASE}/api/v1${path}`, { ...init, headers });
   if (!resp.ok) {
     let code = "unknown";
     let message = resp.statusText;
@@ -34,9 +76,90 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new ApiError(resp.status, code, message);
   }
+  if (resp.status === 204) return undefined as T;
   return resp.json() as Promise<T>;
 }
 
+// --- endpoints --------------------------------------------------------------
+
 export function fetchMeta(): Promise<InstanceMeta> {
   return request<InstanceMeta>("/meta");
+}
+
+/** POST /accounts — open signup: root pubkey + root-signed first device cert. */
+export function createAccount(rootPub: string, deviceCert: DeviceCert): Promise<{ account: string }> {
+  return request("/accounts", {
+    method: "POST",
+    body: JSON.stringify({ root_pub: rootPub, device_cert: deviceCert }),
+  });
+}
+
+export function getAccount(id: string): Promise<AccountInfo> {
+  return request(`/accounts/${encodeURIComponent(id)}`);
+}
+
+/**
+ * POST /records — one signed record. Attaches the bearer token when a session
+ * exists; a root-signed device-cert posted during recovery (no certified
+ * device yet, so no session) is self-authorizing via its root signature.
+ */
+export function postRecord(record: RunaRecord): Promise<{ id: string }> {
+  return request("/records", { method: "POST", body: JSON.stringify(record), auth: true });
+}
+
+export function listRecords(
+  id: string,
+  opts: { type?: string; limit?: number; before?: string } = {},
+): Promise<RecordPage> {
+  const params = new URLSearchParams();
+  if (opts.type !== undefined) params.set("type", opts.type);
+  if (opts.limit !== undefined) params.set("limit", String(opts.limit));
+  if (opts.before !== undefined) params.set("before", opts.before);
+  const qs = params.toString();
+  return request(`/accounts/${encodeURIComponent(id)}/records${qs ? `?${qs}` : ""}`);
+}
+
+// --- auth (protocol §6: signed challenge, no passwords) ---------------------
+
+export function authChallenge(): Promise<{ challenge: string; expires_at: string }> {
+  return request("/auth/challenge");
+}
+
+export function authSession(body: {
+  account: string;
+  device: string;
+  challenge: string;
+  sig: string;
+}): Promise<{ token: string; expires_at: string }> {
+  return request("/auth/session", { method: "POST", body: JSON.stringify(body) });
+}
+
+/**
+ * Full login round-trip: fetch a challenge, have the caller sign
+ * utf8("runa-auth-v1:" + challenge) with a certified device key, exchange it
+ * for a token, and keep the token in memory for subsequent calls.
+ */
+export async function authenticate(
+  account: string,
+  device: string,
+  signChallenge: (challenge: string) => string,
+): Promise<void> {
+  const { challenge } = await authChallenge();
+  const { token } = await authSession({ account, device, challenge, sig: signChallenge(challenge) });
+  setSessionToken(token);
+}
+
+// --- passphrase backup ------------------------------------------------------
+
+/** POST /backup (auth) — one blob per account, overwrite allowed. */
+export function putBackup(blob: PassphraseBackup): Promise<void> {
+  return request("/backup", { method: "POST", body: JSON.stringify({ blob }), auth: true });
+}
+
+/**
+ * GET /backup/{account} — deliberately unauthenticated (the recovering user
+ * has no device to sign with); the blob is Argon2id-encrypted client-side.
+ */
+export function getBackup(account: string): Promise<{ blob: PassphraseBackup }> {
+  return request(`/backup/${encodeURIComponent(account)}`);
 }
