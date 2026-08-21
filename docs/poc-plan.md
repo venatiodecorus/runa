@@ -105,9 +105,9 @@ Goal: cold outreach costs tokens; conversations, once accepted, are free.
 
 Per-instance mode disabling profile customization: no display names, bios, or account metadata — accounts render as their ids; judge users by their content. Configurable per instance, disclosed via `/meta`.
 
-- [ ] Server: `-imageboard` flag / `RUNAD_IMAGEBOARD` env; `imageboard_mode` in `/meta`; reject `profile` records with `403 profile_disabled` when on.
-- [ ] Client: when the instance's `/meta` says imageboard mode, hide profile editing and never render profile records — short account ids everywhere (the client stays instance-agnostic: both modes supported).
-- [ ] Tests both sides; protocol §6 updated (done in the same change as this entry).
+- [x] Server: `-imageboard` flag / `RUNAD_IMAGEBOARD` env; `imageboard_mode` in `/meta`; reject `profile` records with `403 profile_disabled` when on.
+- [x] Client: when the instance's `/meta` says imageboard mode, hide profile editing and never render profile records — short account ids everywhere (the client stays instance-agnostic: both modes supported).
+- [x] Tests both sides; protocol §6 updated (done in the same change as this entry).
 
 ---
 
