@@ -10,12 +10,13 @@ import { Signup } from "./Signup.js";
 import { Recover } from "./Recover.js";
 import { Home } from "./Home.js";
 import { Feed } from "./Feed.js";
+import { Messages } from "./Messages.js";
 import { Devices } from "./Devices.js";
 import { Profile } from "./Profile.js";
 import { shortId, styles } from "./theme.js";
 
 type AnonRoute = "signup" | "recover";
-type UserRoute = "feed" | "posts" | "devices" | "profile";
+type UserRoute = "feed" | "messages" | "posts" | "devices" | "profile";
 
 export function App() {
   const [meta, setMeta] = useState<InstanceMeta | null>(null);
@@ -100,6 +101,7 @@ export function App() {
             }}
           >
             {navButton("Feed", userRoute === "feed", () => setUserRoute("feed"))}
+            {navButton("Messages", userRoute === "messages", () => setUserRoute("messages"))}
             {navButton("My posts", userRoute === "posts", () => setUserRoute("posts"))}
             {navButton("Devices", userRoute === "devices", () => setUserRoute("devices"))}
             {navButton("Profile", userRoute === "profile", () => setUserRoute("profile"))}
@@ -118,6 +120,7 @@ export function App() {
             </p>
           )}
           {userRoute === "feed" && <Feed session={session} />}
+          {userRoute === "messages" && <Messages session={session} />}
           {userRoute === "posts" && <Home session={session} />}
           {userRoute === "devices" && <Devices session={session} />}
           {userRoute === "profile" && <Profile session={session} account={session.root.account} />}

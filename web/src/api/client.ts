@@ -7,7 +7,7 @@
  * Framework-free: no React imports. The session token lives in module memory
  * only — never in IndexedDB or localStorage.
  */
-import type { DeviceCert, DeviceRevoke, RunaRecord } from "@runa/core";
+import type { DeviceCert, DeviceRevoke, DmRecord, RunaRecord } from "@runa/core";
 import type { PassphraseBackup } from "../crypto/recoverykit.js";
 
 export const API_BASE: string =
@@ -170,6 +170,46 @@ export function getGraph2Hop(): Promise<Graph2Hop> {
  */
 export function getFeed(): Promise<FeedResponse> {
   return request("/feed", { auth: true });
+}
+
+// --- DMs (protocol §4 envelope, §6 mailbox) ---------------------------------
+
+export interface DmPage {
+  /** dm records, chronological (oldest→newest) within the page. */
+  records: DmRecord[];
+  next_before: string | null;
+}
+
+export interface DmConversation {
+  with: string;
+  last: DmRecord;
+  /**
+   * True iff the viewer has no trust path to the counterparty AND has never
+   * sent into the conversation — the Phase-3 request tray is classification
+   * only (token spend arrives with M4).
+   */
+  request: boolean;
+}
+
+/**
+ * GET /dm/with/{id} (auth) — dm records where
+ * (author=viewer ∧ to=id) ∨ (author=id ∧ to=viewer); `limit`/`before` page
+ * older history exactly like /records.
+ */
+export function getDmWith(
+  id: string,
+  opts: { limit?: number; before?: string } = {},
+): Promise<DmPage> {
+  const params = new URLSearchParams();
+  if (opts.limit !== undefined) params.set("limit", String(opts.limit));
+  if (opts.before !== undefined) params.set("before", opts.before);
+  const qs = params.toString();
+  return request(`/dm/with/${encodeURIComponent(id)}${qs ? `?${qs}` : ""}`, { auth: true });
+}
+
+/** GET /dm/inbox (auth) — conversations sorted by last activity. */
+export function getDmInbox(): Promise<{ conversations: DmConversation[] }> {
+  return request("/dm/inbox", { auth: true });
 }
 
 // --- auth (protocol §6: signed challenge, no passwords) ---------------------

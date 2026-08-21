@@ -10,6 +10,8 @@ import {
   authenticate,
   createAccount,
   getBackup,
+  getDmInbox,
+  getDmWith,
   getFeed,
   getFollows,
   getGraph2Hop,
@@ -150,6 +152,27 @@ describe("api client", () => {
     expect(res).toEqual(feed);
     expect(calls[0]).toMatchObject({ url: "/api/v1/feed", method: "GET" });
     expect(calls[0]!.headers.get("Authorization")).toBe("Bearer tok-g");
+  });
+
+  it("getDmWith builds the documented query string, authenticated", async () => {
+    setSessionToken("tok-dm");
+    responses = [{ status: 200, body: { records: [], next_before: null } }];
+    const res = await getDmWith(root.account, { limit: 50, before: "2026-08-20T12:00:00Z" });
+    expect(res).toEqual({ records: [], next_before: null });
+    expect(calls[0]!.url).toBe(
+      `/api/v1/dm/with/${encodeURIComponent(root.account)}?limit=50&before=2026-08-20T12%3A00%3A00Z`,
+    );
+    expect(calls[0]!.headers.get("Authorization")).toBe("Bearer tok-dm");
+  });
+
+  it("getDmInbox returns conversations with the request flag, authenticated", async () => {
+    setSessionToken("tok-dm");
+    const inbox = { conversations: [{ with: root.account, last: cert, request: true }] };
+    responses = [{ status: 200, body: inbox }];
+    const res = await getDmInbox();
+    expect(res).toEqual(inbox);
+    expect(calls[0]).toMatchObject({ url: "/api/v1/dm/inbox", method: "GET" });
+    expect(calls[0]!.headers.get("Authorization")).toBe("Bearer tok-dm");
   });
 
   it("surfaces structured errors as ApiError", async () => {
