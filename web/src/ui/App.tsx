@@ -9,12 +9,13 @@ import { restoreSession, login, forgetThisBrowser, type Session } from "./sessio
 import { Signup } from "./Signup.js";
 import { Recover } from "./Recover.js";
 import { Home } from "./Home.js";
+import { Feed } from "./Feed.js";
 import { Devices } from "./Devices.js";
 import { Profile } from "./Profile.js";
 import { shortId, styles } from "./theme.js";
 
 type AnonRoute = "signup" | "recover";
-type UserRoute = "home" | "devices" | "profile";
+type UserRoute = "feed" | "posts" | "devices" | "profile";
 
 export function App() {
   const [meta, setMeta] = useState<InstanceMeta | null>(null);
@@ -23,7 +24,7 @@ export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [anonRoute, setAnonRoute] = useState<AnonRoute>("signup");
-  const [userRoute, setUserRoute] = useState<UserRoute>("home");
+  const [userRoute, setUserRoute] = useState<UserRoute>("feed");
 
   useEffect(() => {
     fetchMeta().then(setMeta, (e) => setMetaError(String(e)));
@@ -98,7 +99,8 @@ export function App() {
               alignItems: "center",
             }}
           >
-            {navButton("Home", userRoute === "home", () => setUserRoute("home"))}
+            {navButton("Feed", userRoute === "feed", () => setUserRoute("feed"))}
+            {navButton("My posts", userRoute === "posts", () => setUserRoute("posts"))}
             {navButton("Devices", userRoute === "devices", () => setUserRoute("devices"))}
             {navButton("Profile", userRoute === "profile", () => setUserRoute("profile"))}
             <span style={{ flex: 1 }} />
@@ -115,7 +117,8 @@ export function App() {
               reachable again.
             </p>
           )}
-          {userRoute === "home" && <Home session={session} />}
+          {userRoute === "feed" && <Feed session={session} />}
+          {userRoute === "posts" && <Home session={session} />}
           {userRoute === "devices" && <Devices session={session} />}
           {userRoute === "profile" && <Profile session={session} account={session.root.account} />}
         </>

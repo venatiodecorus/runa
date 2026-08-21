@@ -33,6 +33,34 @@ export interface RecordPage {
   next_before: string | null;
 }
 
+/**
+ * GET /graph/2hop — the viewer's entitled slice (protocol §6): own follow
+ * list, the follow list of each followed account, and own private mutes.
+ * Plain id-lists (unlike /follows, which returns the signed records) —
+ * exactly the GraphView input to the published trust computation.
+ */
+export interface Graph2Hop {
+  follows: Record<string, string[]>;
+  mutes: string[];
+}
+
+export interface FeedItem {
+  record: RunaRecord;
+  author: string;
+  /** Server's proposal only — the client recomputes and re-ranks (§3.3). */
+  candidate_trust: number;
+}
+
+export interface FeedAuthor {
+  device_certs: DeviceCert[];
+  device_revocations: DeviceRevoke[];
+}
+
+export interface FeedResponse {
+  items: FeedItem[];
+  authors: Record<string, FeedAuthor>;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -117,6 +145,31 @@ export function listRecords(
   if (opts.before !== undefined) params.set("before", opts.before);
   const qs = params.toString();
   return request(`/accounts/${encodeURIComponent(id)}/records${qs ? `?${qs}` : ""}`);
+}
+
+// --- graph & feed (protocol §6) ---------------------------------------------
+
+/**
+ * GET /accounts/{id}/follows (auth) — the current outbound follow list as
+ * signed follow RECORDS (latest created_at wins; unfollow removes the pair).
+ * 403 not_visible unless the requester is a follower of {id}, is {id}, or
+ * {id} has opted up to public via profile `follows_public` (design §8).
+ */
+export function getFollows(id: string): Promise<{ follows: RunaRecord[] }> {
+  return request(`/accounts/${encodeURIComponent(id)}/follows`, { auth: true });
+}
+
+/** GET /graph/2hop (auth) — the viewer's entitled slice as plain id-lists. */
+export function getGraph2Hop(): Promise<Graph2Hop> {
+  return request("/graph/2hop", { auth: true });
+}
+
+/**
+ * GET /feed (auth) — server-proposed candidate ranking plus each author's
+ * certs/revocations so the client can verify every record before rendering.
+ */
+export function getFeed(): Promise<FeedResponse> {
+  return request("/feed", { auth: true });
 }
 
 // --- auth (protocol §6: signed challenge, no passwords) ---------------------

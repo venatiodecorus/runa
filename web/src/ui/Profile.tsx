@@ -4,9 +4,10 @@
  * signature + cert chain verify), and show the account's posts.
  * Own profile: display-name/bio editing via a device-signed profile record.
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { nowTimestamp, signRecord } from "@runa/core";
-import { getAccount, postRecord, type AccountInfo } from "../api/client.js";
+import { getAccount, getGraph2Hop, postRecord, type AccountInfo, type Graph2Hop } from "../api/client.js";
+import { buildGraphRecord, type GraphRecordType } from "../crypto/graph.js";
 import { PostList, verifyAll } from "./Posts.js";
 import { shortId, styles } from "./theme.js";
 import type { Session } from "./session.js";
@@ -123,6 +124,13 @@ function ProfileCard({ session, account }: { session: Session; account: string }
         <p style={{ whiteSpace: "pre-wrap" }}>{String(verifiedProfile.bio)}</p>
       )}
       <p style={styles.muted}>{info.follower_count} follower(s)</p>
+      {!isOwn && (
+        <GraphActions
+          session={session}
+          account={account}
+          onChange={() => load().catch((e) => setError(String(e)))}
+        />
+      )}
       {isOwn && !editing && (
         <button style={styles.button} onClick={() => setEditing(true)}>
           Edit profile
@@ -153,6 +161,84 @@ function ProfileCard({ session, account }: { session: Session; account: string }
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Follow/Unfollow + Mute/Unmute for another account. Current state is derived
+ * from /graph/2hop (the viewer's own follow list and private mutes — protocol
+ * §6); actions are device-signed graph records through POST /records.
+ */
+function GraphActions({
+  session,
+  account,
+  onChange,
+}: {
+  session: Session;
+  account: string;
+  onChange: () => void;
+}) {
+  const [graph, setGraph] = useState<Graph2Hop | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const loadGraph = useCallback(async () => {
+    setGraph(await getGraph2Hop());
+  }, []);
+
+  useEffect(() => {
+    loadGraph().catch((e) => setError(String(e)));
+  }, [loadGraph]);
+
+  const act = async (type: GraphRecordType) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const record = buildGraphRecord(type, session.root.account, session.device, account);
+      await postRecord(record);
+      await loadGraph();
+      onChange(); // follower_count may have changed
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (graph === null) {
+    return error !== null ? (
+      <p style={{ color: "crimson" }}>Could not load your graph: {error}</p>
+    ) : (
+      <p style={styles.muted}>Loading graph…</p>
+    );
+  }
+
+  const following = (graph.follows[session.root.account] ?? []).includes(account);
+  const muted = graph.mutes.includes(account);
+
+  return (
+    <div style={{ marginTop: "0.5rem" }}>
+      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+        <button
+          style={following ? styles.button : styles.primaryButton}
+          disabled={busy}
+          onClick={() => act(following ? "unfollow" : "follow")}
+        >
+          {following ? "Unfollow" : "Follow"}
+        </button>
+        <button
+          style={styles.button}
+          disabled={busy}
+          title="Private: the mute record is never served to anyone but you"
+          onClick={() => act(muted ? "unmute" : "mute")}
+        >
+          {muted ? "Unmute" : "Mute"}
+        </button>
+        {following && <span style={styles.muted}>Following</span>}
+        {muted && <span style={styles.muted}>Muted — zero trust, prunes their hop-2 paths</span>}
+      </div>
+      {error !== null && <p style={{ color: "crimson" }}>{error}</p>}
     </div>
   );
 }

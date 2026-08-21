@@ -10,6 +10,9 @@ import {
   authenticate,
   createAccount,
   getBackup,
+  getFeed,
+  getFollows,
+  getGraph2Hop,
   listRecords,
   postRecord,
   putBackup,
@@ -112,6 +115,41 @@ describe("api client", () => {
     const res = await getBackup(root.account);
     expect(res.blob).toEqual(blob);
     expect(calls[1]!.url).toBe(`/api/v1/backup/${encodeURIComponent(root.account)}`);
+  });
+
+  it("getFollows hits /accounts/{id}/follows with the bearer token (records shape)", async () => {
+    setSessionToken("tok-g");
+    responses = [{ status: 200, body: { follows: [cert] } }];
+    const res = await getFollows(root.account);
+    expect(res.follows).toEqual([cert]);
+    expect(calls[0]).toMatchObject({
+      url: `/api/v1/accounts/${encodeURIComponent(root.account)}/follows`,
+      method: "GET",
+    });
+    expect(calls[0]!.headers.get("Authorization")).toBe("Bearer tok-g");
+  });
+
+  it("getGraph2Hop returns the plain id-list slice, authenticated", async () => {
+    setSessionToken("tok-g");
+    const slice = { follows: { [root.account]: ["x"], x: ["y"] }, mutes: ["z"] };
+    responses = [{ status: 200, body: slice }];
+    const res = await getGraph2Hop();
+    expect(res).toEqual(slice);
+    expect(calls[0]).toMatchObject({ url: "/api/v1/graph/2hop", method: "GET" });
+    expect(calls[0]!.headers.get("Authorization")).toBe("Bearer tok-g");
+  });
+
+  it("getFeed returns items + authors map, authenticated", async () => {
+    setSessionToken("tok-g");
+    const feed = {
+      items: [{ record: cert, author: root.account, candidate_trust: 0.7 }],
+      authors: { [root.account]: { device_certs: [cert], device_revocations: [] } },
+    };
+    responses = [{ status: 200, body: feed }];
+    const res = await getFeed();
+    expect(res).toEqual(feed);
+    expect(calls[0]).toMatchObject({ url: "/api/v1/feed", method: "GET" });
+    expect(calls[0]!.headers.get("Authorization")).toBe("Bearer tok-g");
   });
 
   it("surfaces structured errors as ApiError", async () => {
