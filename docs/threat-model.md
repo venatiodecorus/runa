@@ -50,4 +50,4 @@ Filter bubbles by construction (explore mode is the designated mitigation); full
 
 ## PoC-specific notes
 
-The PoC (see [`poc-plan.md`](poc-plan.md)) runs without: signup PoW, reach budgets (unless the stretch phase lands), standing/reports, reproducible-build transparency. During PoC these are absent, not broken — the PoC threat model is A1 plus content-authenticity only. Do not demo the PoC as spam-resistant.
+The PoC (see [`poc-plan.md`](poc-plan.md)) includes cold-outreach budgets (M4 landed) but still runs without: signup PoW, behavioral friction, standing/reports, reproducible-build transparency. Budgets alone price cold outreach per account but nothing yet prices bulk account *creation* (§5.3 arithmetic) — so the honest statement remains: do not demo the PoC as spam-resistant.

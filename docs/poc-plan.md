@@ -1,6 +1,6 @@
 # Proof-of-Concept Plan
 
-**Status:** v0.1 — ready to execute. Phases map to design §12 milestones. Work top-to-bottom; each phase is independently testable and demoable. Check boxes off in this file as tasks complete (that's its job — it is the shared work ledger).
+**Status:** PoC complete (2026-08-21) — Phases 0–4 + S all checked, including the M4 stretch and the §17 imageboard addition; every phase's exit criteria verified by scripted client-vs-server runs. Next up: the post-PoC roadmap (design §12 M5–M9: tier-3 epoch posts, attestation, standing/reports, invites/explore, transparency infrastructure) plus the §13 watch-items (real-browser latency at realistic graph sizes before settling §3.3). This file remains the shared work ledger.
 
 ## PoC scope & thesis
 
