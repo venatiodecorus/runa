@@ -94,12 +94,12 @@ Goal: E2E DMs surviving multi-device; server dump shows ciphertext only.
 
 Goal: cold outreach costs tokens; conversations, once accepted, are free.
 
-- [ ] Protocol/core: cold-classification (recipient-vantage, ≤2 hops above threshold) shared-vector-tested in both languages; reciprocal-engagement window rules.
-- [ ] Server: token-bucket table (base 5/day open signup, carryover cap 2 days, growth `k·log(1+Σ inbound_trust)`), spend on cold DM/mention/reply-notification/follow-notification, `429`-style budget error with published-constant explanation.
-- [ ] Client: request tray accept/decline; budget meter in compose; graceful budget-exhausted UX.
-- [ ] Explicitly deferred within M4: signup PoW, behavioral friction hooks, standing multiplier (constant 1.0).
+- [x] Protocol/core: cold-classification (recipient-vantage, ≤2 hops above threshold) shared-vector-tested in both languages (cold-01); reciprocal-engagement window = recipient previously DM'd the sender (storage-backed predicate, server-side).
+- [x] Server: token-bucket table (base 5/day open signup, carryover cap 2 days, growth `k·log(1+Σ inbound_trust)`), spend on cold DM and cold follow (mentions/reply-notifications deferred until notifications exist — the reply record itself is never blocked, throttle-don't-silence), `429 budget_exhausted` with published-constant explanation, atomic spend, lazy daily refill with injected clock.
+- [x] Client: request tray Accept & reply / Dismiss (browser-local, restorable; decline-with-report deferred to M7); budget meter in the DM composer (server value audited against core math); graceful budget-exhausted UX preserving drafts, on DMs and follows.
+- [x] Explicitly deferred within M4 (unchanged): signup PoW, behavioral friction hooks, standing multiplier (constant 1.0).
 
-**Exit:** the budget leg of the demo (account C hits the request tray).
+**Exit:** the budget leg of the demo (account C hits the request tray). **Verified 2026-08-21** via scripted run: fresh account = 5 tokens, five cold DMs delivered to strangers' request trays, sixth rejected 429 with the published-constants message; /budget tracks the burn.
 
 ## Owner addition — imageboard mode (design §17, added 2026-08-21)
 
