@@ -2,7 +2,16 @@
 
 A privacy-respecting social network where **posting is free and *reach* is the rationed resource**. Spam is treated as an economics problem, defeated by trust-graph position that attackers cannot buy or mint. Content privacy is enforced by client-side cryptography, not server policy.
 
-**Status:** pre-code. Design is complete; documentation and PoC plan are in place; implementation starts at [`docs/poc-plan.md`](docs/poc-plan.md) Phase 0.
+**Status:** PoC implementation in progress. Identity & custody (M1), the trust-ranked feed (M2), E2E DMs (M3), and the simulation lab are working end to end; reach budgets (M4) are landing. [`docs/poc-plan.md`](docs/poc-plan.md) is the live ledger — its checkboxes are the source of truth.
+
+## Quick start (dev)
+
+```sh
+npm install       # once, repo root (npm workspaces)
+make dev          # API server :8080 + web client (Vite) — two browser profiles = two users
+make simlab       # the constants-tuning simulator
+make test         # Go + Vitest suites, including cross-implementation protocol vectors
+```
 
 ## Core ideas
 
