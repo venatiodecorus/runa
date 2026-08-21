@@ -244,3 +244,9 @@ An in-repo tool to model how tuning the published constants changes reach across
 - **Outputs (visual + numeric)**: reach distribution across the population (for each account, how many viewers' feeds surface it above threshold) as histogram/CDF; newcomer budget trajectories against follower growth; the §13 target metric (% of good-faith accounts ever hitting a budget ceiling, target <1%); Sybil-ring effective reach vs honest-cohort reach; brigade impact on standing once the standing model exists.
 - **Two modes**: an interactive browser UI (sliders + charts) and a headless CLI for scripted parameter sweeps emitting JSON/CSV. **Scenario files are checked into the repo** — tuning debates cite reproducible scenarios, and §13's flags are resolved by scenario, not vibes.
 - **Role in governance**: proposed constant changes must cite the simlab scenarios that motivated them (§9 review process).
+
+## 17. Web client
+
+Additional details for how a user should experience the network.
+
+- **Imageboard mode**: disable profile customization. No profile pictures, bios, or any account metadata. In the spirit of the hacker ethos, judge users by their content. Possibly the default operating mode, but configurable per instance.

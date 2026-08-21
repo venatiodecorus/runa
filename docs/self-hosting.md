@@ -13,7 +13,8 @@
 1. **Client is instance-agnostic:** API base URL is configuration; the web build must be deployable against any instance (and servable *by* `runad` itself as static assets, or separately per the code-delivery mitigations in the threat model).
 2. **Instances self-describe:** `GET /api/v1/meta` (protocol §6) returns instance name, software + protocol versions, and the **running constants**. Clients compute trust with the instance-published constants and visibly badge deviations from the reference defaults in `trust-and-reach.md`. Transparency is a per-instance protocol expectation.
 3. **Trivial ops floor:** one static Go binary + one SQLite file + one config (flags/env) must be a complete working instance. Anything beyond that (Postgres, object storage) stays optional.
-4. **Constants are config, invariants are not.** Operators may tune published constants (their `/meta` discloses it). The invariants in `trust-and-reach.md` §5 (no purchasable reach, throttle-don't-silence, …) are code, not config — an operator who changes those is running a fork, and clients/users can tell because the algorithms are published.
+4. **Modes are per-instance and disclosed.** Example: **imageboard mode** (design §17) — the instance disables profile customization (no names/bios/avatars; accounts render as their ids) via a config flag, published in `/meta` so any client renders accordingly. Modes never touch the trust math or the invariants.
+5. **Constants are config, invariants are not.** Operators may tune published constants (their `/meta` discloses it). The invariants in `trust-and-reach.md` §5 (no purchasable reach, throttle-don't-silence, …) are code, not config — an operator who changes those is running a fork, and clients/users can tell because the algorithms are published.
 
 ## Operator responsibilities (expanded at M9 into a real guide)
 

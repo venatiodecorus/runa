@@ -101,6 +101,14 @@ Goal: cold outreach costs tokens; conversations, once accepted, are free.
 
 **Exit:** the budget leg of the demo (account C hits the request tray).
 
+## Owner addition — imageboard mode (design §17, added 2026-08-21)
+
+Per-instance mode disabling profile customization: no display names, bios, or account metadata — accounts render as their ids; judge users by their content. Configurable per instance, disclosed via `/meta`.
+
+- [ ] Server: `-imageboard` flag / `RUNAD_IMAGEBOARD` env; `imageboard_mode` in `/meta`; reject `profile` records with `403 profile_disabled` when on.
+- [ ] Client: when the instance's `/meta` says imageboard mode, hide profile editing and never render profile records — short account ids everywhere (the client stays instance-agnostic: both modes supported).
+- [ ] Tests both sides; protocol §6 updated (done in the same change as this entry).
+
 ---
 
 ## Working agreements for implementing agents

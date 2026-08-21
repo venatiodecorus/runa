@@ -115,7 +115,7 @@ Auth: signup is open (`POST /accounts` with root pubkey + first device cert). Se
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /meta` | instance self-description: `{name, software_version, protocol_version, constants: {…}}` — unauthenticated; clients compute trust with these values and badge deviations from reference defaults (design §15) |
+| `GET /meta` | instance self-description: `{name, software_version, protocol_version, constants: {…}, imageboard_mode: <bool>}` — unauthenticated; clients compute trust with these values and badge deviations from reference defaults (design §15). `imageboard_mode` (design §17): when true the instance disables profile customization — the server rejects `profile` records with `403 profile_disabled`, and clients on that instance hide profile editing and render account ids (no display names, bios, or avatars) |
 | `POST /accounts` | create account: root pubkey + initial `device-cert` |
 | `GET /accounts/{id}` | profile, device certs/revocations, follower **count** |
 | `POST /records` | submit any signed record; server verifies before storing |
