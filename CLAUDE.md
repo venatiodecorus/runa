@@ -25,6 +25,7 @@ Run `npm install` once at the repo root (npm workspaces). Then, from the root:
 - `make vectors-test` — just the cross-implementation protocol-vector tests.
 - Single Go test: `cd server && go test ./internal/api/ -run TestMeta`. Single TS test file: `npm run test -w packages/core -- --run <file-or-pattern>` (any workspace).
 - Server binary: `cd server && go build ./cmd/runad`; flags `-addr`, `-db`, `-instance-name` (env: `RUNAD_ADDR`, `RUNAD_DB`, `RUNAD_INSTANCE_NAME`).
+- Regenerate protocol vectors after a format/constant change: `npm run gen:vectors -w packages/core` (and `-w web` for the recovery-kit vector); then `make vectors-test`.
 
 ## Architecture (big picture)
 
