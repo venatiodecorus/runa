@@ -14,8 +14,8 @@ import (
 
 const maxBodyBytes = 1 << 20
 
-// Accepted record types (docs/protocol.md §6): Phase 1 identity/content
-// plus the Phase 2 graph types.
+// Accepted record types (docs/protocol.md §6): Phase 1 identity/content,
+// the Phase 2 graph types, and the Phase 3 dm envelope.
 var acceptedTypes = map[string]bool{
 	"post":          true,
 	"profile":       true,
@@ -25,6 +25,7 @@ var acceptedTypes = map[string]bool{
 	"unfollow":      true,
 	"mute":          true,
 	"unmute":        true,
+	"dm":            true,
 }
 
 // graphTypes carry a `subject` account id and materialize edges on ingest.
@@ -210,6 +211,9 @@ func (s *server) handleIngestRecord(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if typ == "dm" && !s.validateDMIngest(w, rec) {
+		return
+	}
 
 	row, err := recordRow(rec)
 	if err != nil {
@@ -230,6 +234,9 @@ func (s *server) handleIngestRecord(w http.ResponseWriter, r *http.Request) {
 		err = s.st.RevokeDevice(rec.Author(), signPub, rec.CreatedAt())
 	case "follow", "unfollow", "mute", "unmute":
 		err = s.applyGraphRecord(typ, rec, row.ID)
+	case "dm":
+		to, _ := rec.String("to")
+		err = s.st.InsertDM(row.ID, rec.Author(), to, rec.CreatedAt())
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())
