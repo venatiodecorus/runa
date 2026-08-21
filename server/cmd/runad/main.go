@@ -21,6 +21,8 @@ func main() {
 	addr := flag.String("addr", envOr("RUNAD_ADDR", ":8080"), "listen address")
 	dbPath := flag.String("db", envOr("RUNAD_DB", "./runa.db"), "path to SQLite database")
 	instanceName := flag.String("instance-name", envOr("RUNAD_INSTANCE_NAME", "runa-dev"), "instance name published via /api/v1/meta")
+	imageboard := flag.Bool("imageboard", envOr("RUNAD_IMAGEBOARD", "") == "1" || envOr("RUNAD_IMAGEBOARD", "") == "true",
+		"imageboard mode (design §17): disable profile customization; accounts render as ids")
 	flag.Parse()
 
 	st, err := store.Open(*dbPath)
@@ -29,7 +31,7 @@ func main() {
 	}
 	defer st.Close()
 
-	handler := api.New(st, api.Config{InstanceName: *instanceName})
+	handler := api.New(st, api.Config{InstanceName: *instanceName, Imageboard: *imageboard})
 	log.Printf("runad listening on %s (db: %s)", *addr, *dbPath)
 	if err := http.ListenAndServe(*addr, handler); err != nil {
 		log.Fatal(err)

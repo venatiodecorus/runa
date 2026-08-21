@@ -21,7 +21,16 @@ import { PostList, verifyAll } from "./Posts.js";
 import { shortId, styles } from "./theme.js";
 import type { Session } from "./session.js";
 
-export function Profile({ session, account }: { session: Session; account: string }) {
+export function Profile({
+  session,
+  account,
+  imageboard = false,
+}: {
+  session: Session;
+  account: string;
+  /** Instance runs imageboard mode (design §17): no profiles, ids only. */
+  imageboard?: boolean;
+}) {
   const [lookup, setLookup] = useState(account);
   const [target, setTarget] = useState(account);
 
@@ -44,14 +53,22 @@ export function Profile({ session, account }: { session: Session; account: strin
           View
         </button>
       </form>
-      <ProfileCard key={target} session={session} account={target} />
+      <ProfileCard key={target} session={session} account={target} imageboard={imageboard} />
       <h3>Posts</h3>
       <PostList account={target} />
     </section>
   );
 }
 
-function ProfileCard({ session, account }: { session: Session; account: string }) {
+function ProfileCard({
+  session,
+  account,
+  imageboard = false,
+}: {
+  session: Session;
+  account: string;
+  imageboard?: boolean;
+}) {
   const [info, setInfo] = useState<AccountInfo | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -115,7 +132,10 @@ function ProfileCard({ session, account }: { session: Session; account: string }
   if (error) return <p style={{ color: "crimson" }}>Could not load account: {error}</p>;
   if (info === null) return <p style={styles.muted}>Loading…</p>;
 
-  const verifiedProfile = info.profile !== null && profileError === null ? info.profile : null;
+  // Imageboard mode (design §17): profile records are neither rendered nor
+  // editable — accounts are their ids; judge users by their content.
+  const verifiedProfile =
+    !imageboard && info.profile !== null && profileError === null ? info.profile : null;
 
   return (
     <div style={styles.card}>
@@ -124,7 +144,10 @@ function ProfileCard({ session, account }: { session: Session; account: string }
         {isOwn && <span style={styles.muted}> (you)</span>}
       </h2>
       <div style={{ ...styles.mono, ...styles.muted }}>{account}</div>
-      {profileError !== null && (
+      {imageboard && (
+        <p style={styles.muted}>This instance runs imageboard mode — no profiles; accounts are their ids.</p>
+      )}
+      {!imageboard && profileError !== null && (
         <p style={{ color: "crimson" }}>
           Profile record failed verification and is not displayed: {profileError}
         </p>
@@ -140,12 +163,12 @@ function ProfileCard({ session, account }: { session: Session; account: string }
           onChange={() => load().catch((e) => setError(String(e)))}
         />
       )}
-      {isOwn && !editing && (
+      {isOwn && !imageboard && !editing && (
         <button style={styles.button} onClick={() => setEditing(true)}>
           Edit profile
         </button>
       )}
-      {isOwn && editing && (
+      {isOwn && !imageboard && editing && (
         <div style={{ display: "grid", gap: "0.5rem", marginTop: "0.5rem" }}>
           <input
             style={styles.input}

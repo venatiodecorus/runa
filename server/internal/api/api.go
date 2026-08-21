@@ -21,6 +21,10 @@ const (
 type Config struct {
 	InstanceName string
 
+	// Imageboard enables imageboard mode (design §17): profile records are
+	// rejected and clients render bare account ids. Published via /meta.
+	Imageboard bool
+
 	// Now overrides the server's clock (nil = time.Now). Budget refill
 	// depends on "today"; tests inject a clock to advance days.
 	Now func() time.Time
@@ -75,6 +79,7 @@ func (s *server) handleMeta(w http.ResponseWriter, r *http.Request) {
 		"software_version": SoftwareVersion,
 		"protocol_version": ProtocolVersion,
 		"constants":        trust.Constants(),
+		"imageboard_mode":  s.cfg.Imageboard,
 	})
 }
 

@@ -162,6 +162,12 @@ func (s *server) handleIngestRecord(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "unknown_type", "unsupported record type: "+typ)
 		return
 	}
+	// Imageboard mode (design §17, protocol §6): profile customization is
+	// disabled on this instance; accounts render as their ids.
+	if typ == "profile" && s.cfg.Imageboard {
+		writeError(w, http.StatusForbidden, "profile_disabled", "this instance runs imageboard mode: profile records are disabled")
+		return
+	}
 	if err := rec.VerifySignature(); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_record", err.Error())
 		return

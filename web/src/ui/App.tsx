@@ -123,7 +123,13 @@ export function App() {
           {userRoute === "messages" && <Messages session={session} />}
           {userRoute === "posts" && <Home session={session} />}
           {userRoute === "devices" && <Devices session={session} />}
-          {userRoute === "profile" && <Profile session={session} account={session.root.account} />}
+          {userRoute === "profile" && (
+            <Profile
+              session={session}
+              account={session.root.account}
+              imageboard={meta?.imageboard_mode === true}
+            />
+          )}
         </>
       )}
     </main>

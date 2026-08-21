@@ -13,6 +13,7 @@ import {
   getBudget,
   getDmInbox,
   getDmWith,
+  fetchMeta,
   getFeed,
   getFollows,
   getGraph2Hop,
@@ -64,6 +65,15 @@ afterEach(() => {
 });
 
 describe("api client", () => {
+  it("fetchMeta carries imageboard_mode through (absent = undefined, not an error)", async () => {
+    responses = [
+      { status: 200, body: { name: "ib", software_version: "x", protocol_version: "1", constants: {}, imageboard_mode: true } },
+      { status: 200, body: { name: "plain", software_version: "x", protocol_version: "1", constants: {} } },
+    ];
+    expect((await fetchMeta()).imageboard_mode).toBe(true);
+    expect((await fetchMeta()).imageboard_mode).toBeUndefined();
+  });
+
   it("createAccount posts root_pub + device_cert to /accounts", async () => {
     responses = [{ status: 201, body: { account: root.account } }];
     const res = await createAccount(root.account, cert);

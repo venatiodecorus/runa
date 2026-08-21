@@ -18,6 +18,12 @@ export interface InstanceMeta {
   software_version: string;
   protocol_version: string;
   constants: Record<string, number>;
+  /**
+   * Imageboard mode (design §17): the instance disables profile
+   * customization — clients hide profile editing and render account ids.
+   * Absent (older servers) means false.
+   */
+  imageboard_mode?: boolean;
 }
 
 export interface AccountInfo {
