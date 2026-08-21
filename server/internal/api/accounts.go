@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -13,13 +14,31 @@ import (
 
 const maxBodyBytes = 1 << 20
 
-// Phase-1 accepted record types (docs/protocol.md §6).
+// Accepted record types (docs/protocol.md §6): Phase 1 identity/content
+// plus the Phase 2 graph types.
 var acceptedTypes = map[string]bool{
 	"post":          true,
 	"profile":       true,
 	"device-cert":   true,
 	"device-revoke": true,
+	"follow":        true,
+	"unfollow":      true,
+	"mute":          true,
+	"unmute":        true,
 }
+
+// graphTypes carry a `subject` account id and materialize edges on ingest.
+var graphTypes = map[string]bool{
+	"follow":   true,
+	"unfollow": true,
+	"mute":     true,
+	"unmute":   true,
+}
+
+// publicListTypes are the only record types GET /accounts/{id}/records may
+// serve: follows are follower-visible via /accounts/{id}/follows only, and
+// mutes are never served to anyone but their author (docs/protocol.md §6).
+var publicListTypes = []string{"post", "profile", "device-cert", "device-revoke"}
 
 func nowUTC() string {
 	return time.Now().UTC().Format("2006-01-02T15:04:05Z")
@@ -105,12 +124,17 @@ func (s *server) handleGetAccount(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())
 		return
 	}
+	followerCount, err := s.st.FollowerCount(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", err.Error())
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"account":            id,
 		"profile":            rawOrNull(profile),
 		"device_certs":       rawList(certs),
 		"device_revocations": rawList(revocations),
-		"follower_count":     0, // graph lands in Phase 2
+		"follower_count":     followerCount,
 	})
 }
 
@@ -177,6 +201,15 @@ func (s *server) handleIngestRecord(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if graphTypes[typ] {
+		// The subject must be a well-formed account id, but need not have an
+		// account here — unknown subjects simply contribute nothing.
+		subject, _ := rec.String("subject")
+		if _, err := record.DecodeKey(subject); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_record", "subject: "+err.Error())
+			return
+		}
+	}
 
 	row, err := recordRow(rec)
 	if err != nil {
@@ -195,6 +228,8 @@ func (s *server) handleIngestRecord(w http.ResponseWriter, r *http.Request) {
 	case "device-revoke":
 		signPub, _ := rec.String("device_sign_pub")
 		err = s.st.RevokeDevice(rec.Author(), signPub, rec.CreatedAt())
+	case "follow", "unfollow", "mute", "unmute":
+		err = s.applyGraphRecord(typ, rec, row.ID)
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())
@@ -224,7 +259,20 @@ func (s *server) handleListRecords(w http.ResponseWriter, r *http.Request) {
 		}
 		limit = min(n, 200)
 	}
-	rows, err := s.st.ListRecords(id, q.Get("type"), limit, q.Get("before"))
+	// Only publicly-visible types are served here: follows go through the
+	// follower-visible /accounts/{id}/follows, mutes only to their author.
+	types := publicListTypes
+	if typ := q.Get("type"); typ != "" {
+		if !slices.Contains(publicListTypes, typ) {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"records":     []json.RawMessage{},
+				"next_before": nil,
+			})
+			return
+		}
+		types = []string{typ}
+	}
+	rows, err := s.st.ListRecords(id, types, limit, q.Get("before"))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())
 		return

@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"errors"
+	"strings"
 )
 
 // ErrAccountExists is returned by CreateAccountWithCert for a duplicate id.
@@ -84,15 +85,19 @@ func (s *Store) InsertRecord(r RecordRow) error {
 	return err
 }
 
-// ListRecords returns an account's records reverse-chronologically. typ
-// filters by type when non-empty; before (exclusive created_at bound)
-// pages backwards when non-empty.
-func (s *Store) ListRecords(account, typ string, limit int, before string) ([]RecordRow, error) {
+// ListRecords returns an account's records reverse-chronologically,
+// restricted to the given types (at least one is required — callers pass an
+// explicit allowlist so private types are never served by accident); before
+// (exclusive created_at bound) pages backwards when non-empty.
+func (s *Store) ListRecords(account string, types []string, limit int, before string) ([]RecordRow, error) {
+	if len(types) == 0 {
+		return nil, errors.New("ListRecords requires an explicit type allowlist")
+	}
 	q := `SELECT id, account, COALESCE(device, ''), type, created_at, body FROM records WHERE account = ?`
 	args := []any{account}
-	if typ != "" {
-		q += ` AND type = ?`
-		args = append(args, typ)
+	q += ` AND type IN (?` + strings.Repeat(", ?", len(types)-1) + `)`
+	for _, t := range types {
+		args = append(args, t)
 	}
 	if before != "" {
 		q += ` AND created_at < ?`

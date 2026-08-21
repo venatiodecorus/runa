@@ -278,8 +278,9 @@ func TestRevokedDeviceRejected(t *testing.T) {
 func TestUnknownTypeRejected(t *testing.T) {
 	c := newClient(t)
 	root, device := c.signup("2026-08-20T12:00:00Z")
+	// `attestation` is reserved for M6 and not yet accepted (protocol §3.1).
 	rec, _ := signRecord(t, map[string]any{
-		"v": 1, "type": "follow", "author": root.pub, "device": device.pub,
+		"v": 1, "type": "attestation", "author": root.pub, "device": device.pub,
 		"created_at": "2026-08-20T12:00:01Z", "subject": root.pub,
 	}, device.priv)
 	status, body := c.do("POST", "/records", "", rec)
