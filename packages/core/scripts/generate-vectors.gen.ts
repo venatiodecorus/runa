@@ -18,6 +18,7 @@ import { canonicalize } from "../src/jcs.js";
 import { signRecord, signingBytes } from "../src/records.js";
 import { subjectiveTrust } from "../src/trust.js";
 import { dailyBudget } from "../src/budgets.js";
+import { sealDm, openDm } from "../src/envelope.js";
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), "../../../docs/protocol/vectors");
 
@@ -134,6 +135,51 @@ it("regenerates protocol vectors", () => {
       "Implementations must produce `trust` within 1e-9 for (viewer, author) over `graph`.",
     cases: trustCases,
   });
+
+  // --- envelope-v1-01: tier-2 DM seal/open with all keys given ------------
+  {
+    const senderRoot = hexToBytes("aa".repeat(32));
+    const senderDevSign = hexToBytes("bb".repeat(32));
+    const recipRoot = hexToBytes("cc".repeat(32));
+    const recipDevKex = hexToBytes("dd".repeat(32));
+    const recipDevSign = hexToBytes("ee".repeat(32));
+    const senderId = b64url.encode(ed25519.getPublicKey(senderRoot));
+    const recipId = b64url.encode(ed25519.getPublicKey(recipRoot));
+    const recipDevId = b64url.encode(ed25519.getPublicKey(recipDevSign));
+    let ctr = 0;
+    const fakeRandom = (n: number) => new Uint8Array(n).map((_, i) => (i + ++ctr) % 256);
+    const dm = sealDm({
+      body: "vector message",
+      participants: [senderId, recipId],
+      to: recipId,
+      author: senderId,
+      device: b64url.encode(ed25519.getPublicKey(senderDevSign)),
+      deviceSignSeed: senderDevSign,
+      createdAt: T0,
+      recipients: [{ device: recipDevId, kexPub: x25519.getPublicKey(recipDevKex) }],
+      random: fakeRandom,
+    });
+    // self-check
+    const opened = openDm(dm, { deviceId: recipDevId, kexSeed: recipDevKex });
+    if (opened.body !== "vector message") throw new Error("envelope self-check failed");
+    write("envelope-v1-01.json", {
+      description:
+        "Tier-2 envelope v1 (protocol §4). All private keys are test keys (hex seeds). Implementations must: " +
+        "verify the record signature; open as the recipient device and obtain `plaintext`; fail on any of the " +
+        "tamper mutations. Servers verify signatures/structure only — they cannot and must not decrypt.",
+      seeds: {
+        sender_device_ed25519: "bb".repeat(32),
+        recipient_device_x25519: "dd".repeat(32),
+        recipient_device_ed25519: "ee".repeat(32),
+      },
+      envelope: dm,
+      plaintext: opened,
+      tamper_mutations: [
+        { field: "to", value: senderId, expect: "decryption failure (AAD binding)" },
+        { field: "ciphertext", value: "AAAA" + dm.ciphertext.slice(4), expect: "decryption failure" },
+      ],
+    });
+  }
 
   // --- budgets-01: cold-outreach budget formula ---------------------------
   const budgetCases = [

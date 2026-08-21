@@ -1,0 +1,44 @@
+{
+  "description": "Tier-2 envelope v1 (protocol §4). All private keys are test keys (hex seeds). Implementations must: verify the record signature; open as the recipient device and obtain `plaintext`; fail on any of the tamper mutations. Servers verify signatures/structure only — they cannot and must not decrypt.",
+  "seeds": {
+    "sender_device_ed25519": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "recipient_device_x25519": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "recipient_device_ed25519": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  },
+  "envelope": {
+    "v": 1,
+    "type": "dm",
+    "alg": "x25519-hkdf-sha256+xchacha20poly1305",
+    "author": "5zTqbCtiV95yNV5HKqBaTEh-a0Y8Ap7TBt8vAbVja1g",
+    "device": "fVnFYj3UCnSqTVoyrGRdOz-V2urkwiviVHbdakhvc4I",
+    "created_at": "2026-08-20T12:00:00Z",
+    "to": "ylfu0w5KcnTvTGSPVvWPiAsg0solcl2eXBPIPAjAmus",
+    "nonce": "ISMlJykrLS8xMzU3OTs9P0FDRUdJS01P",
+    "recipients": [
+      {
+        "device": "gUci3nHFsU50jf8yKuf3xBXO5Vh2ZJUpLNbEwKap3yg",
+        "eph_pub": "kAtA1UP7cYSWq-ptwZFEG6rATvyzLAJrmRnJ3aGz1wo",
+        "wrap_nonce": "WVtdX2FjZWdpa21vcXN1d3l7fX-Bg4WH",
+        "wrapped_key": "7cC5irZEcnkoc9WR-tFK7N3uAzva_s-O4I0Wuwat_LtyMrdblUgQmqJjPCY-ugfI"
+      }
+    ],
+    "ciphertext": "OYrr1Ili9QdNw3Xzajma6rBA6cKR_krc3zYaFue3Xf_hsTiuL2HcZx-LrhwjM84kVVR_ri7TuYsz8W1BwuBhshPQgbd1zvkqA4Ez8GyQDVUlJifDUD77JVmW1ir0-7DNjZ3PEWu3e0FNxPHuhb0HPQa1tOc9_L8U-heVDUVHMa4c4QpSjlquqMhPX5mav4YLVmU",
+    "sig": "VQdafn2YshPKly8KRkIksiuG0j7oYbDFyOfj6PMdEBipyyHTajWwOC7vm6MDJ7MlZe9CeXxL1fvUEcgprTbmBQ"
+  },
+  "plaintext": {
+    "body": "vector message",
+    "conversation": "5zTqbCtiV95yNV5HKqBaTEh-a0Y8Ap7TBt8vAbVja1g:ylfu0w5KcnTvTGSPVvWPiAsg0solcl2eXBPIPAjAmus"
+  },
+  "tamper_mutations": [
+    {
+      "field": "to",
+      "value": "5zTqbCtiV95yNV5HKqBaTEh-a0Y8Ap7TBt8vAbVja1g",
+      "expect": "decryption failure (AAD binding)"
+    },
+    {
+      "field": "ciphertext",
+      "value": "AAAA1Ili9QdNw3Xzajma6rBA6cKR_krc3zYaFue3Xf_hsTiuL2HcZx-LrhwjM84kVVR_ri7TuYsz8W1BwuBhshPQgbd1zvkqA4Ez8GyQDVUlJifDUD77JVmW1ir0-7DNjZ3PEWu3e0FNxPHuhb0HPQa1tOc9_L8U-heVDUVHMa4c4QpSjlquqMhPX5mav4YLVmU",
+      "expect": "decryption failure"
+    }
+  ]
+}

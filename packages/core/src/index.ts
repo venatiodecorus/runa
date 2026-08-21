@@ -1,5 +1,15 @@
 export { CONSTANTS, type Constants } from "./constants.js";
 export { dailyBudget } from "./budgets.js";
+export {
+  DM_ALG,
+  type DmRecord,
+  type DmRecipientEntry,
+  type DmPlaintext,
+  type SealRecipient,
+  conversationId,
+  sealDm,
+  openDm,
+} from "./envelope.js";
 export { b64url, utf8 } from "./encoding.js";
 export { canonicalize, assertNoFloats } from "./jcs.js";
 export {
