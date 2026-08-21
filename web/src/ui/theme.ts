@@ -17,6 +17,15 @@ export const styles: Record<string, CSSProperties> = {
     background: "#fff5f5",
     color: "crimson",
   },
+  /** Calm inline notice (budget exhausted etc.) — informational, NOT an error. */
+  noticeCard: {
+    border: "1px solid #b8cfe8",
+    borderRadius: 8,
+    padding: "0.75rem 1rem",
+    marginBottom: "0.75rem",
+    background: "#eef5fc",
+    color: "#1c3d5a",
+  },
   mono: {
     fontFamily: "ui-monospace, monospace",
     fontSize: "0.85em",

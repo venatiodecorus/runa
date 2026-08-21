@@ -6,7 +6,16 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { nowTimestamp, signRecord } from "@runa/core";
-import { getAccount, getGraph2Hop, postRecord, type AccountInfo, type Graph2Hop } from "../api/client.js";
+import {
+  ApiError,
+  getAccount,
+  getBudget,
+  getGraph2Hop,
+  postRecord,
+  type AccountInfo,
+  type Graph2Hop,
+} from "../api/client.js";
+import { formatBudgetMeter } from "../dm/budget.js";
 import { buildGraphRecord, type GraphRecordType } from "../crypto/graph.js";
 import { PostList, verifyAll } from "./Posts.js";
 import { shortId, styles } from "./theme.js";
@@ -182,6 +191,7 @@ function GraphActions({
   const [graph, setGraph] = useState<Graph2Hop | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [budgetNotice, setBudgetNotice] = useState<{ serverMessage: string; meter: string | null } | null>(null);
 
   const loadGraph = useCallback(async () => {
     setGraph(await getGraph2Hop());
@@ -194,13 +204,23 @@ function GraphActions({
   const act = async (type: GraphRecordType) => {
     setBusy(true);
     setError(null);
+    setBudgetNotice(null);
     try {
       const record = buildGraphRecord(type, session.root.account, session.device, account);
       await postRecord(record);
       await loadGraph();
       onChange(); // follower_count may have changed
     } catch (e) {
-      setError(String(e));
+      if (e instanceof ApiError && e.code === "budget_exhausted") {
+        // A cold follow costs a token (protocol §6, M4) — calm notice, not an error.
+        const meter = await getBudget().then(
+          (b) => formatBudgetMeter(b.tokens, b.daily_budget),
+          () => null,
+        );
+        setBudgetNotice({ serverMessage: e.message, meter });
+      } else {
+        setError(String(e));
+      }
     } finally {
       setBusy(false);
     }
@@ -238,6 +258,17 @@ function GraphActions({
         {following && <span style={styles.muted}>Following</span>}
         {muted && <span style={styles.muted}>Muted — zero trust, prunes their hop-2 paths</span>}
       </div>
+      {budgetNotice !== null && (
+        <div style={{ ...styles.noticeCard, marginTop: "0.5rem" }}>
+          <strong>You've used today's cold-outreach budget</strong>
+          <div style={{ marginTop: "0.25rem" }}>
+            Following someone who doesn't trust you yet costs a token. It refills daily and grows
+            as people follow you — try again after the refill.
+            {budgetNotice.meter !== null && <> You have {budgetNotice.meter} tokens right now.</>}
+          </div>
+          <div style={{ ...styles.muted, marginTop: "0.25rem" }}>Server: {budgetNotice.serverMessage}</div>
+        </div>
+      )}
       {error !== null && <p style={{ color: "crimson" }}>{error}</p>}
     </div>
   );

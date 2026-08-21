@@ -10,6 +10,7 @@ import {
   authenticate,
   createAccount,
   getBackup,
+  getBudget,
   getDmInbox,
   getDmWith,
   getFeed,
@@ -173,6 +174,22 @@ describe("api client", () => {
     expect(res).toEqual(inbox);
     expect(calls[0]).toMatchObject({ url: "/api/v1/dm/inbox", method: "GET" });
     expect(calls[0]!.headers.get("Authorization")).toBe("Bearer tok-dm");
+  });
+
+  it("getBudget returns the documented meter shape, authenticated", async () => {
+    setSessionToken("tok-b");
+    const info = {
+      daily_budget: 14.6,
+      tokens: 3.2,
+      base: 5,
+      inbound_trust: 11,
+      carryover_cap: 29.2,
+    };
+    responses = [{ status: 200, body: info }];
+    const res = await getBudget();
+    expect(res).toEqual(info);
+    expect(calls[0]).toMatchObject({ url: "/api/v1/budget", method: "GET" });
+    expect(calls[0]!.headers.get("Authorization")).toBe("Bearer tok-b");
   });
 
   it("surfaces structured errors as ApiError", async () => {

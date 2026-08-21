@@ -212,6 +212,26 @@ export function getDmInbox(): Promise<{ conversations: DmConversation[] }> {
   return request("/dm/inbox", { auth: true });
 }
 
+// --- cold-outreach budget (protocol §6, trust-and-reach §3) ------------------
+
+/**
+ * Sender-side budget meter (M4). Floats appear only in responses, never in
+ * signed records (ADR-0005) — the server is the metering authority; the
+ * client uses core `dailyBudget` to audit `daily_budget`, not to enforce.
+ */
+export interface BudgetInfo {
+  daily_budget: number;
+  tokens: number;
+  base: number;
+  inbound_trust: number;
+  carryover_cap: number;
+}
+
+/** GET /budget (auth) — the viewer's cold-outreach token bucket. */
+export function getBudget(): Promise<BudgetInfo> {
+  return request("/budget", { auth: true });
+}
+
 // --- auth (protocol §6: signed challenge, no passwords) ---------------------
 
 export function authChallenge(): Promise<{ challenge: string; expires_at: string }> {
