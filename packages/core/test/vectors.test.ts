@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { CONSTANTS } from "../src/constants.js";
 import { subjectiveTrust } from "../src/trust.js";
-import { dailyBudget } from "../src/budgets.js";
+import { dailyBudget, isColdInitiation } from "../src/budgets.js";
 import { canonicalize } from "../src/jcs.js";
 import { verifySignature, type RunaRecord } from "../src/records.js";
 import { verifyAuthoredRecord, type DeviceCert, type DeviceRevoke } from "../src/certs.js";
@@ -58,6 +58,15 @@ describe("vectors: budgets-01", () => {
   for (const c of cases) {
     it(c.name, () => {
       expect(dailyBudget(c.base, c.inbound_trust, c.k, c.standing)).toBeCloseTo(c.budget, 9);
+    });
+  }
+});
+
+describe("vectors: cold-01", () => {
+  const { cases } = load("cold-01.json");
+  for (const c of cases) {
+    it(c.name, () => {
+      expect(isColdInitiation(c.recipient, c.sender, c.graph)).toBe(c.cold);
     });
   }
 });

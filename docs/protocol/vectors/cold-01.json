@@ -1,0 +1,91 @@
+{
+  "description": "Cold-initiation classification (trust-and-reach §3): cold iff recipient's effective trust in sender < feed_surface_threshold, computed from the RECIPIENT's vantage. Reference constants.",
+  "cases": [
+    {
+      "name": "stranger is cold",
+      "graph": {
+        "follows": {}
+      },
+      "recipient": "R",
+      "sender": "S",
+      "cold": true
+    },
+    {
+      "name": "direct followee is warm",
+      "graph": {
+        "follows": {
+          "R": [
+            "S"
+          ]
+        }
+      },
+      "recipient": "R",
+      "sender": "S",
+      "cold": false
+    },
+    {
+      "name": "hop-2 at decay 0.35 ≥ threshold 0.3 is warm",
+      "graph": {
+        "follows": {
+          "R": [
+            "M"
+          ],
+          "M": [
+            "S"
+          ]
+        }
+      },
+      "recipient": "R",
+      "sender": "S",
+      "cold": false
+    },
+    {
+      "name": "sender following recipient does NOT warm (recipient vantage)",
+      "graph": {
+        "follows": {
+          "S": [
+            "R"
+          ]
+        }
+      },
+      "recipient": "R",
+      "sender": "S",
+      "cold": true
+    },
+    {
+      "name": "muted sender is cold despite path",
+      "graph": {
+        "follows": {
+          "R": [
+            "S"
+          ]
+        },
+        "mutes": [
+          "S"
+        ]
+      },
+      "recipient": "R",
+      "sender": "S",
+      "cold": true
+    },
+    {
+      "name": "hop-3 is cold",
+      "graph": {
+        "follows": {
+          "R": [
+            "A"
+          ],
+          "A": [
+            "B"
+          ],
+          "B": [
+            "S"
+          ]
+        }
+      },
+      "recipient": "R",
+      "sender": "S",
+      "cold": true
+    }
+  ]
+}

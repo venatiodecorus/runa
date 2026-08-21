@@ -1,5 +1,5 @@
 export { CONSTANTS, type Constants } from "./constants.js";
-export { dailyBudget } from "./budgets.js";
+export { dailyBudget, isColdInitiation, refillBucket } from "./budgets.js";
 export {
   DM_ALG,
   type DmRecord,

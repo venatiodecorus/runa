@@ -17,7 +17,7 @@ import { b64url } from "../src/encoding.js";
 import { canonicalize } from "../src/jcs.js";
 import { signRecord, signingBytes } from "../src/records.js";
 import { subjectiveTrust } from "../src/trust.js";
-import { dailyBudget } from "../src/budgets.js";
+import { dailyBudget, isColdInitiation } from "../src/budgets.js";
 import { sealDm, openDm } from "../src/envelope.js";
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), "../../../docs/protocol/vectors");
@@ -197,6 +197,27 @@ it("regenerates protocol vectors", () => {
     description:
       "budget = (base + k×log(1+Σ inbound_trust)) × standing (trust-and-reach §3). Natural log. Tolerance 1e-9.",
     cases: budgetCases,
+  });
+
+  // --- cold-01: cold-initiation classification (recipient vantage) --------
+  const coldCases = [
+    { name: "stranger is cold", graph: { follows: {} }, recipient: "R", sender: "S", cold: true },
+    { name: "direct followee is warm", graph: { follows: { R: ["S"] } }, recipient: "R", sender: "S", cold: false },
+    { name: "hop-2 at decay 0.35 ≥ threshold 0.3 is warm", graph: { follows: { R: ["M"], M: ["S"] } }, recipient: "R", sender: "S", cold: false },
+    { name: "sender following recipient does NOT warm (recipient vantage)", graph: { follows: { S: ["R"] } }, recipient: "R", sender: "S", cold: true },
+    { name: "muted sender is cold despite path", graph: { follows: { R: ["S"] }, mutes: ["S"] }, recipient: "R", sender: "S", cold: true },
+    { name: "hop-3 is cold", graph: { follows: { R: ["A"], A: ["B"], B: ["S"] } }, recipient: "R", sender: "S", cold: true },
+  ];
+  for (const c of coldCases) {
+    if (isColdInitiation(c.recipient, c.sender, c.graph) !== c.cold) {
+      throw new Error(`cold self-check failed: ${c.name}`);
+    }
+  }
+  write("cold-01.json", {
+    description:
+      "Cold-initiation classification (trust-and-reach §3): cold iff recipient's effective trust in sender " +
+      "< feed_surface_threshold, computed from the RECIPIENT's vantage. Reference constants.",
+    cases: coldCases,
   });
 
   // --- constants-01: cross-implementation constants agreement -------------
