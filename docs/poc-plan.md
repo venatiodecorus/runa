@@ -83,12 +83,12 @@ Runs in parallel with Phases 3–4; depends only on Phase 0 scaffolding and Phas
 
 Goal: E2E DMs surviving multi-device; server dump shows ciphertext only.
 
-- [ ] Protocol/core: envelope v1 (protocol §4) seal/open in TS; open (structure/signature verification only — servers can't decrypt) in Go; full envelope vector with private keys; conversation-binding anti-replay check.
-- [ ] Server: `dm` record ingest (signature + cert chain on the *envelope*, ciphertext opaque), `GET /dm/inbox`, `GET /dm/with/{id}`; polling (SSE/websocket deferred).
-- [ ] Client: conversation list + thread UI; encrypt to all certified, unrevoked devices of both participants; decrypt-verify-render (hard-fail on either); revoked-device exclusion test.
-- [ ] Request-tray *placeholder*: DMs from accounts with no trust path land in a separate "Requests" tab (classification only — no budgets yet; becomes real in Phase 4).
+- [x] Protocol/core: envelope v1 (protocol §4) seal/open in TS (packages/core); structural/signature verification in Go (no decryption); envelope-v1-01 vector with private keys; conversation-binding anti-replay check.
+- [x] Server: `dm` record ingest (signature + cert chain on the *envelope*, ciphertext opaque, pinned alg), `GET /dm/inbox`, `GET /dm/with/{id}`; polling (SSE/websocket deferred).
+- [x] Client: conversation list + thread UI; encrypt to all certified, unrevoked devices of both participants; verify-then-decrypt-render (hard-fail placeholders, benign 'sent before this device enrolled' case distinguished); revoked-device exclusion test.
+- [x] Request-tray *placeholder*: DMs from accounts with no trust path land in a separate "Requests" section (classification only; server flag = no trust path AND never replied; becomes real in Phase 4).
 
-**Exit:** the DM leg of the demo including the SQLite-dump inspection.
+**Exit:** the DM leg of the demo including the SQLite-dump inspection. **Verified 2026-08-21** via scripted client-vs-runad run: stranger DM → request tray, decrypt on recipient device, reply clears request flag, `grep` of the server DB finds no plaintext.
 
 ## Phase 4 — Reach budgets (M4) — stretch
 
