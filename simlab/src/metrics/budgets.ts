@@ -2,7 +2,7 @@
  * Cold-outreach budget metrics (trust-and-reach §3). The budget formula
  * itself comes from @runa/core (dailyBudget) — simlab never forks the math.
  */
-import { dailyBudget } from "@runa/core";
+import { dailyBudget, refillBucket } from "@runa/core";
 import { Rng } from "../rng.js";
 import type { Population, SimConstants } from "../population/types.js";
 
@@ -62,7 +62,7 @@ export function ceilingHitRate(pop: Population, constants: SimConstants, days: n
           ? Math.round(((cohort.targetFollowers ?? 0) * day) / days)
           : pop.followerCount[account]!;
       const budget = dailyBudget(constants.cold_budget_open, followers, constants.budget_growth_k);
-      tokens = Math.min(tokens + budget, budget * constants.budget_carryover_days);
+      tokens = refillBucket(tokens, budget, constants.budget_carryover_days);
       let attempts = rng.poisson(coldPerDay);
       while (attempts-- > 0) {
         if (tokens < 1) {
