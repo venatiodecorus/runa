@@ -57,10 +57,10 @@ Goal: signup → recovery kit → signed tier-1 posts → device loss is a non-e
 
 Goal: follows/mutes exist; feed ranked by published math; client re-verifies.
 
-- [x] *(TS half + vectors done; Go trust mirror in progress)* Protocol/core: `follow`/`unfollow`/`mute`/`unmute` records + vectors; trust computation (hop cap 2, decay 0.35, path sum cap 2.0, mute pruning) implemented in **both** `packages/core` (TS) and Go against shared graph-fixture vectors (trust-graph-01) — including the constants-agreement vector (Go ≡ core ≡ the table in `trust-and-reach.md`).
-- [ ] Server: graph tables + visibility enforcement (outbound follows follower-visible w/ public opt-up; inbound count-only; mutes never served to others); `GET /accounts/{id}/follows`, `GET /graph/2hop`, `GET /feed` candidate ranking.
-- [ ] Client: follow/mute UI; feed page that fetches candidates + 2-hop slice, recomputes `effective_trust` using the constants from the instance's `/meta`, re-ranks, buckets by threshold; dev-mode divergence badge when server order ≠ client order (design §3.3 audit made visible); deviation badge when instance constants ≠ reference defaults (design §15).
-- [ ] Measure & note in this file: 2-hop fetch + client compute latency at toy scale (the §13 testing flag — start the habit).
+- [x] Protocol/core: `follow`/`unfollow`/`mute`/`unmute` records + vectors; trust computation (hop cap 2, decay 0.35, path sum cap 2.0, mute pruning) implemented in **both** `packages/core` (TS) and Go against shared graph-fixture vectors (trust-graph-01) — including the constants-agreement vector (Go ≡ core ≡ the table in `trust-and-reach.md`).
+- [x] Server: graph tables + visibility enforcement (outbound follows follower-visible w/ public opt-up via profile `follows_public`; inbound count-only; mutes never served to others — /records restricted to public types to close the leak); `GET /accounts/{id}/follows`, `GET /graph/2hop`, `GET /feed` candidate ranking with authors cert bundle.
+- [x] Client: follow/mute UI; feed page that fetches candidates + 2-hop slice, recomputes `effective_trust` using the constants from the instance's `/meta`, re-ranks, buckets by threshold; divergence badge when server order ≠ client order (local order always shown — design §3.3); deviation badge when instance constants ≠ reference defaults (design §15).
+- [x] Measure & note in this file: 2-hop fetch + client compute latency at toy scale (the §13 testing flag — start the habit). **Measured 2026-08-21** (scripted client vs local runad, 3 accounts): /graph/2hop fetch 0.6 ms, trustMap + re-rank 1.1 ms. simlab gives the compute-side at scale: full 10k-account trustMap sweep ≈ hundreds of ms total (see simlab stat tile). Real-browser numbers at realistic graph sizes still needed before calling §3.3.
 
 **Exit:** the follow/trust-ranking leg of the demo; muting a hop-1 account visibly zeroes its hop-2 contributions.
 
