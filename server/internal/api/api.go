@@ -20,11 +20,16 @@ const (
 
 type Config struct {
 	InstanceName string
+
+	// Now overrides the server's clock (nil = time.Now). Budget refill
+	// depends on "today"; tests inject a clock to advance days.
+	Now func() time.Time
 }
 
 type server struct {
 	st  *store.Store
 	cfg Config
+	now func() time.Time
 
 	// Outstanding auth challenges (single-use, short-lived). In-memory is
 	// deliberate: a restart invalidating unanswered challenges is harmless.
@@ -33,7 +38,11 @@ type server struct {
 }
 
 func New(st *store.Store, cfg Config) http.Handler {
-	s := &server{st: st, cfg: cfg, challenges: make(map[string]time.Time)}
+	now := cfg.Now
+	if now == nil {
+		now = time.Now
+	}
+	s := &server{st: st, cfg: cfg, now: now, challenges: make(map[string]time.Time)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/healthz", s.handleHealthz)
 	mux.HandleFunc("GET /api/v1/meta", s.handleMeta)
@@ -43,6 +52,7 @@ func New(st *store.Store, cfg Config) http.Handler {
 	mux.HandleFunc("GET /api/v1/accounts/{id}/follows", s.handleGetFollows)
 	mux.HandleFunc("GET /api/v1/graph/2hop", s.handleGraph2hop)
 	mux.HandleFunc("GET /api/v1/feed", s.handleFeed)
+	mux.HandleFunc("GET /api/v1/budget", s.handleGetBudget)
 	mux.HandleFunc("GET /api/v1/dm/with/{id}", s.handleDMWith)
 	mux.HandleFunc("GET /api/v1/dm/inbox", s.handleDMInbox)
 	mux.HandleFunc("POST /api/v1/records", s.handleIngestRecord)

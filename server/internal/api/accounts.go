@@ -214,6 +214,11 @@ func (s *server) handleIngestRecord(w http.ResponseWriter, r *http.Request) {
 	if typ == "dm" && !s.validateDMIngest(w, rec) {
 		return
 	}
+	// All verification has passed; meter cold initiations (M4) before any
+	// storage — a 429 means the record is not stored at all.
+	if !s.meterColdInitiation(w, rec, typ) {
+		return
+	}
 
 	row, err := recordRow(rec)
 	if err != nil {

@@ -15,6 +15,18 @@ func (s *Store) InsertDM(recordID, author, recipient, createdAt string) error {
 	return err
 }
 
+// HasDMFrom reports whether author has ever sent a dm to recipient — the
+// reciprocal-window predicate of trust-and-reach §3 (a recipient who has
+// DM'd the sender keeps the conversation free of metering).
+func (s *Store) HasDMFrom(author, recipient string) (bool, error) {
+	var n int
+	err := s.DB.QueryRow(
+		`SELECT EXISTS (SELECT 1 FROM dms WHERE author = ? AND recipient = ?)`,
+		author, recipient,
+	).Scan(&n)
+	return n > 0, err
+}
+
 // DMsWith returns one page of the conversation between viewer and other —
 // dm records where (author=viewer AND to=other) OR (author=other AND
 // to=viewer) — as stored canonical bodies, oldest→newest within the page.

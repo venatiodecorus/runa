@@ -54,6 +54,34 @@ func TestVectorTrust(t *testing.T) {
 	}
 }
 
+// TestVectorCold asserts IsColdInitiation against the shared cold-01
+// vector: cold iff the recipient's effective trust in the sender is below
+// the surface threshold, recipient's vantage, standing 1.0.
+func TestVectorCold(t *testing.T) {
+	var v struct {
+		Cases []struct {
+			Name  string `json:"name"`
+			Graph struct {
+				Follows map[string][]string `json:"follows"`
+				Mutes   []string            `json:"mutes"`
+			} `json:"graph"`
+			Recipient string `json:"recipient"`
+			Sender    string `json:"sender"`
+			Cold      bool   `json:"cold"`
+		} `json:"cases"`
+	}
+	readVector(t, "cold-01.json", &v)
+	if len(v.Cases) == 0 {
+		t.Fatal("no cases in vector")
+	}
+	for _, tc := range v.Cases {
+		graph := GraphView{Follows: tc.Graph.Follows, Mutes: tc.Graph.Mutes}
+		if got := IsColdInitiation(tc.Recipient, tc.Sender, graph, DefaultParams, 1.0); got != tc.Cold {
+			t.Errorf("%s: IsColdInitiation = %v, want %v", tc.Name, got, tc.Cold)
+		}
+	}
+}
+
 // TestVectorBudgets asserts DailyBudget against the shared budgets-01
 // vector (natural log, tolerance 1e-9).
 func TestVectorBudgets(t *testing.T) {
