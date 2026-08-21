@@ -14,6 +14,7 @@ export const CONSTANTS = {
   cold_budget_open: 5,
   cold_budget_invite: 15,
   budget_carryover_days: 2,
+  budget_growth_k: 4,
   epoch_max_age_days: 30,
 } as const;
 

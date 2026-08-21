@@ -15,6 +15,7 @@ const (
 	ColdBudgetOpen       = 5
 	ColdBudgetInvite     = 15
 	BudgetCarryoverDays  = 2
+	BudgetGrowthK        = 4
 	EpochMaxAgeDays      = 30
 )
 
@@ -30,6 +31,7 @@ func Constants() map[string]any {
 		"cold_budget_open":        ColdBudgetOpen,
 		"cold_budget_invite":      ColdBudgetInvite,
 		"budget_carryover_days":   BudgetCarryoverDays,
+		"budget_growth_k":         BudgetGrowthK,
 		"epoch_max_age_days":      EpochMaxAgeDays,
 	}
 }

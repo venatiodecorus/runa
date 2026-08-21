@@ -17,6 +17,7 @@ import { b64url } from "../src/encoding.js";
 import { canonicalize } from "../src/jcs.js";
 import { signRecord, signingBytes } from "../src/records.js";
 import { subjectiveTrust } from "../src/trust.js";
+import { dailyBudget } from "../src/budgets.js";
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), "../../../docs/protocol/vectors");
 
@@ -132,6 +133,24 @@ it("regenerates protocol vectors", () => {
       "Subjective trust cases (docs/trust-and-reach.md §1), reference constants (decay 0.35, cap 2.0). " +
       "Implementations must produce `trust` within 1e-9 for (viewer, author) over `graph`.",
     cases: trustCases,
+  });
+
+  // --- budgets-01: cold-outreach budget formula ---------------------------
+  const budgetCases = [
+    { name: "no followers = base", base: 5, inbound_trust: 0, k: 4, standing: 1, budget: 5 },
+    { name: "ten followers ≈ 3× base", base: 5, inbound_trust: 10, k: 4, standing: 1, budget: 5 + 4 * Math.log(11) },
+    { name: "flat late: 1000 followers", base: 5, inbound_trust: 1000, k: 4, standing: 1, budget: 5 + 4 * Math.log(1001) },
+    { name: "standing halves the budget", base: 5, inbound_trust: 10, k: 4, standing: 0.5, budget: (5 + 4 * Math.log(11)) / 2 },
+    { name: "invite base", base: 15, inbound_trust: 0, k: 4, standing: 1, budget: 15 },
+  ];
+  for (const c of budgetCases) {
+    const got = dailyBudget(c.base, c.inbound_trust, c.k, c.standing);
+    if (Math.abs(got - c.budget) > 1e-9) throw new Error(`budget self-check failed: ${c.name}`);
+  }
+  write("budgets-01.json", {
+    description:
+      "budget = (base + k×log(1+Σ inbound_trust)) × standing (trust-and-reach §3). Natural log. Tolerance 1e-9.",
+    cases: budgetCases,
   });
 
   // --- constants-01: cross-implementation constants agreement -------------

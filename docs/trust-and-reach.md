@@ -58,7 +58,7 @@ An initiation is **cold** iff the *recipient* has no trust path (≤2 hops, abov
 | Standing decay half-life | 30 days | toward 1.0 |
 | Cold budget: open / personal-invite | 5 / 15 per day | token bucket |
 | Budget carryover cap | ~2 days | |
-| Budget growth constant `k` | pick so 10 followers ≈ 3× base | |
+| Budget growth constant `k` | 4 | 10 followers: 5 → 14.6 ≈ 3× base |
 | Epoch max age | 30 days | + rotate on membership change |
 | KDF (passphrase backup) | Argon2id, m=64 MiB, t=3, p=1 | see protocol §7 |
 | Shamir (social recovery) | K-of-N, user-chosen | suggested default 3-of-5 |

@@ -35,21 +35,21 @@ Goal: `make dev` runs both halves; `make test` and `make lint` pass on empty-ish
 Goal: signup → recovery kit → signed tier-1 posts → device loss is a non-event.
 
 **Protocol/core (both languages, vector-driven — build first):**
-- [ ] JCS canonicalization + vectors (incl. "no floats" rejection).
-- [ ] Record sign/verify: `device-cert`, `device-revoke`, `profile`, `post`; cert-chain verification (device → root, revocation honored); vectors for valid + tampered + revoked cases.
-- [ ] Recovery kit: seed ↔ BIP39 words ↔ key file; Argon2id passphrase blob; vectors.
+- [x] JCS canonicalization + vectors (incl. "no floats" rejection).
+- [x] Record sign/verify: `device-cert`, `device-revoke`, `profile`, `post`; cert-chain verification (device → root, revocation honored); vectors for valid + tampered + revoked cases.
+- [x] Recovery kit: seed ↔ BIP39 words ↔ key file; Argon2id passphrase blob; vectors (recovery-kit-01; Argon2id excluded from vectors by design — too slow for CI).
 
 **Server:**
-- [ ] Migrations: `accounts`, `records` (content-addressed id, author, device, type, created_at, body JSON), `devices` (cert/revocation materialized).
-- [ ] `GET /meta` (instance name, software/protocol versions, running constants — design §15), `POST /accounts`, `GET /accounts/{id}`, `POST /records` (verify-on-ingest), `GET /accounts/{id}/records`, challenge auth (`GET /auth/challenge` + signed-challenge token middleware), `POST /backup` + fetch.
-- [ ] Integration tests: signup, post, tampered-record rejection, revoked-device rejection.
+- [x] Migrations: `accounts`, `records` (content-addressed id, author, device, type, created_at, body JSON), `devices` (cert/revocation materialized) — plus `sessions` and `backups`.
+- [x] `GET /meta` (instance name, software/protocol versions, running constants — design §15), `POST /accounts`, `GET /accounts/{id}`, `POST /records` (verify-on-ingest), `GET /accounts/{id}/records`, challenge auth (`GET /auth/challenge` + signed-challenge token middleware), `POST /backup` + fetch (fetch deliberately unauthenticated — caveat in protocol §6).
+- [x] Integration tests: signup, post, tampered-record rejection, revoked-device rejection (+ pagination, backup roundtrip, challenge single-use; plus a scripted full-stack smoke driving the web client's own modules against runad).
 
 **Client:**
-- [ ] `src/crypto/`: keygen (root seed → Ed25519; device Ed25519+X25519), IndexedDB key store (device keys + optional working root copy).
-- [ ] Signup flow: generate → **recovery-kit screen (download + words, confirm) → browsing**. One screen, per design §2.3.
-- [ ] Import/recovery flow: paste words or upload key file → new device cert → session live (~30 s target).
-- [ ] Device management UI: list certs, revoke (root-gated), add-device via key import (QR handoff deferred).
-- [ ] Compose + profile view + own-posts timeline, signatures verified client-side before render.
+- [x] `src/crypto/`: keygen (root seed → Ed25519; device Ed25519+X25519), IndexedDB key store (device keys + optional working root copy).
+- [x] Signup flow: generate → **recovery-kit screen (download + words, confirm) → browsing**. One screen, per design §2.3 (optional passphrase-backup step included).
+- [x] Import/recovery flow: paste words or upload key file (or account id + passphrase → server blob) → new device cert → session live (~30 s target).
+- [x] Device management UI: list certs, revoke (root-gated), add-device via key import (QR handoff deferred).
+- [x] Compose + profile view + own-posts timeline, signatures verified client-side before render (unverifiable records show a placeholder, never content).
 
 **Exit:** the signup/recovery-kit and word-list-recovery legs of the demo work in two browser profiles.
 
@@ -57,7 +57,7 @@ Goal: signup → recovery kit → signed tier-1 posts → device loss is a non-e
 
 Goal: follows/mutes exist; feed ranked by published math; client re-verifies.
 
-- [ ] Protocol/core: `follow`/`unfollow`/`mute`/`unmute` records + vectors; trust computation (hop cap 2, decay 0.35, path sum cap 2.0, mute pruning) implemented in **both** `packages/core` (TS) and Go against shared graph-fixture vectors — including the constants-agreement vector (Go ≡ core ≡ the table in `trust-and-reach.md`). *This core-math task unblocks Phase S.*
+- [x] *(TS half + vectors done; Go trust mirror in progress)* Protocol/core: `follow`/`unfollow`/`mute`/`unmute` records + vectors; trust computation (hop cap 2, decay 0.35, path sum cap 2.0, mute pruning) implemented in **both** `packages/core` (TS) and Go against shared graph-fixture vectors (trust-graph-01) — including the constants-agreement vector (Go ≡ core ≡ the table in `trust-and-reach.md`).
 - [ ] Server: graph tables + visibility enforcement (outbound follows follower-visible w/ public opt-up; inbound count-only; mutes never served to others); `GET /accounts/{id}/follows`, `GET /graph/2hop`, `GET /feed` candidate ranking.
 - [ ] Client: follow/mute UI; feed page that fetches candidates + 2-hop slice, recomputes `effective_trust` using the constants from the instance's `/meta`, re-ranks, buckets by threshold; dev-mode divergence badge when server order ≠ client order (design §3.3 audit made visible); deviation badge when instance constants ≠ reference defaults (design §15).
 - [ ] Measure & note in this file: 2-hop fetch + client compute latency at toy scale (the §13 testing flag — start the habit).
@@ -68,14 +68,14 @@ Goal: follows/mutes exist; feed ranked by published math; client re-verifies.
 
 Runs in parallel with Phases 3–4; depends only on Phase 0 scaffolding and Phase 2's core-math task. Budget and (flagged) standing math land in `packages/core` here, *before* the server implements them — core is the reference implementation, the Go server follows it.
 
-- [ ] `simlab/src/population/`: seeded deterministic PRNG (no `Math.random`); graph generators (random, small-world/clustered communities, preferential attachment); cohort models — genuine newcomers, well-connected accounts, Sybil rings, coordinated brigades.
-- [ ] Scenario format (JSON: population spec + cohorts + constant overrides + seed) with load/save; baseline scenario `scenarios/baseline-10k.json` checked in.
-- [ ] Metrics engine over `packages/core` math: per-account reach (number of viewers whose feed surfaces the account ≥ threshold), reach distribution by cohort, newcomer budget trajectory vs follower growth, **% of good-faith accounts ever hitting a budget ceiling** (design §13 target <1%), Sybil-ring effective reach vs honest cohort.
-- [ ] Budget math (`base + k·log(1+Σ inbound_trust)`, carryover, cold-classification) added to `packages/core` with vectors.
-- [ ] Interactive UI: constants panel (every published constant, live sliders), charts — reach histogram + CDF, budget trajectory lines, cohort-comparison stat tiles; re-run on change with visible seed.
-- [ ] Headless CLI (`node`): run a scenario or a parameter sweep → JSON/CSV, for scripted tuning and CI regression on constants.
-- [ ] Red-team scenarios checked in: Sybil ring attempting reach amplification; brigade vs diversity-weighting (standing model behind a flag until M7 specifies it).
-- [ ] Document in `simlab/README.md`: how to run, scenario format, how to cite a scenario in a constant-change PR.
+- [x] `simlab/src/population/`: seeded deterministic PRNG (no `Math.random`); graph generators (random, small-world/clustered communities, preferential attachment); cohort models — genuine newcomers, well-connected accounts, Sybil rings (brigade cohorts land with the M7 standing model).
+- [x] Scenario format (JSON: population spec + cohorts + constant overrides + seed); `scenarios/baseline-10k.json` and `scenarios/sybil-stress.json` checked in.
+- [x] Metrics engine over `packages/core` math: per-account reach (number of viewers whose feed surfaces the account ≥ threshold), reach distribution by cohort, newcomer budget trajectory vs follower growth, **% of good-faith accounts ever hitting a budget ceiling** (design §13 target <1% — baseline-10k measures 0.01%), Sybil-ring effective reach vs honest cohort (confined: ring median ≈ ring size).
+- [x] Budget math (`base + k·log(1+Σ inbound_trust)`, k=4 published) in `packages/core` with budgets-01 vectors (cold-classification + carryover mechanics land server-side in Phase 4; carryover simulated in simlab).
+- [x] Interactive UI: constants panel (live sliders + ≠-reference badges), charts — reach CDF + per-cohort histograms, budget trajectory lines, stat tiles incl. ceiling-target status; re-run on change with visible seed.
+- [x] Headless CLI (vite-node): run a scenario or a parameter sweep → JSON/CSV, for scripted tuning and CI regression on constants.
+- [x] *(Sybil half)* Red-team scenarios checked in: `sybil-stress` (ring + bridges, confinement asserted in tests); brigade vs diversity-weighting deferred to M7 (needs the standing model).
+- [x] Document in `simlab/README.md`: how to run, scenario format, how to cite a scenario in a constant-change PR.
 
 **Exit:** the simlab leg of the demo — load `baseline-10k`, drag decay 0.35→0.5, reach distribution and newcomer-ceiling metrics update live; CLI sweep over `k` emits CSV.
 

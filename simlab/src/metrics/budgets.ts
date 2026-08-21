@@ -1,20 +1,10 @@
 /**
- * Cold-outreach budget model (trust-and-reach §3). The formula lives here
- * until the M4 server work promotes it (and budget_growth_k) into
- * @runa/core + Go behind shared vectors; the shapes match the spec exactly:
- *
- *   budget = (base + k × log(1 + Σ inbound_trust)) × standing
- *
- * Inbound trust of an account sums its followers' direct-follow weight (1.0)
- * × each follower's standing — with standing fixed at 1.0 pre-M7, that is
- * the follower count.
+ * Cold-outreach budget metrics (trust-and-reach §3). The budget formula
+ * itself comes from @runa/core (dailyBudget) — simlab never forks the math.
  */
+import { dailyBudget } from "@runa/core";
 import { Rng } from "../rng.js";
 import type { Population, SimConstants } from "../population/types.js";
-
-export function dailyBudget(base: number, inboundTrust: number, k: number, standing = 1.0): number {
-  return (base + k * Math.log(1 + inboundTrust)) * standing;
-}
 
 export interface TrajectoryPoint {
   day: number;

@@ -1,4 +1,5 @@
 export { CONSTANTS, type Constants } from "./constants.js";
+export { dailyBudget } from "./budgets.js";
 export { b64url, utf8 } from "./encoding.js";
 export { canonicalize, assertNoFloats } from "./jcs.js";
 export {

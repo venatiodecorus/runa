@@ -31,7 +31,7 @@ export function resolveConstants(overrides?: Partial<SimConstants>): SimConstant
     feed_surface_threshold: CONSTANTS.feed_surface_threshold,
     cold_budget_open: CONSTANTS.cold_budget_open,
     budget_carryover_days: CONSTANTS.budget_carryover_days,
-    budget_growth_k: 4, // promoted to published constants with the M4 server work
+    budget_growth_k: CONSTANTS.budget_growth_k,
     ...overrides,
   };
 }

@@ -1,0 +1,45 @@
+{
+  "description": "budget = (base + k×log(1+Σ inbound_trust)) × standing (trust-and-reach §3). Natural log. Tolerance 1e-9.",
+  "cases": [
+    {
+      "name": "no followers = base",
+      "base": 5,
+      "inbound_trust": 0,
+      "k": 4,
+      "standing": 1,
+      "budget": 5
+    },
+    {
+      "name": "ten followers ≈ 3× base",
+      "base": 5,
+      "inbound_trust": 10,
+      "k": 4,
+      "standing": 1,
+      "budget": 14.591581091193483
+    },
+    {
+      "name": "flat late: 1000 followers",
+      "base": 5,
+      "inbound_trust": 1000,
+      "k": 4,
+      "standing": 1,
+      "budget": 32.63501911726088
+    },
+    {
+      "name": "standing halves the budget",
+      "base": 5,
+      "inbound_trust": 10,
+      "k": 4,
+      "standing": 0.5,
+      "budget": 7.295790545596741
+    },
+    {
+      "name": "invite base",
+      "base": 15,
+      "inbound_trust": 0,
+      "k": 4,
+      "standing": 1,
+      "budget": 15
+    }
+  ]
+}

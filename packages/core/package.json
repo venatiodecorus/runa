@@ -12,6 +12,7 @@
     "gen:vectors": "vitest run --config vitest.scripts.config.ts"
   },
   "devDependencies": {
+    "@types/node": "^22.20.1",
     "typescript": "^5.6.3",
     "vitest": "^2.1.9"
   },
