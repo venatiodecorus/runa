@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
-    "gen:vectors": "vitest run --config vitest.scripts.config.ts"
+    "gen:vectors": "vitest run --config vitest.scripts.config.ts",
+    "seed": "vite-node scripts/seed.ts"
   },
   "dependencies": {
     "@noble/ciphers": "^1.2.1",

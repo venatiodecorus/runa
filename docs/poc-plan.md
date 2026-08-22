@@ -14,7 +14,7 @@ The PoC must demonstrate, end to end, in a real browser:
 
 Cross-cutting from Phase 0 (design §15): the client is instance-agnostic (API base is config), the server self-describes via `/meta`, and nothing privileges the primary instance. The plain-language [explainers](explainers/) exist now and must track any algorithm/crypto change.
 
-Out of PoC scope (post-PoC roadmap = design §12 M5–M9): tier-3 epoch posts, attestation, standing/reports, invites/explore, transparency infrastructure, the M9 operator guide/Docker image, federation (deferred by design). The PoC threat model note in [`threat-model.md`](threat-model.md) applies: don't demo it as spam-resistant.
+Out of PoC scope (post-PoC roadmap = design §12 M5–M9): tier-3 epoch posts, attestation, standing/reports, invites/explore, transparency infrastructure, the M9 operator guide/Docker image, federation (deferred by design). **Groups** (design §18, added 2026-08-21) are a recorded post-M5 direction: private groups reuse M5's epoch machinery with an explicit roster (so M5 must spec the recipient set abstractly — see protocol §5), public groups are a crypto-free curation layer pairing naturally with M8. The PoC threat model note in [`threat-model.md`](threat-model.md) applies: don't demo it as spam-resistant.
 
 **PoC exit demo script:** two fresh browser profiles → sign up A and B (recovery kits shown) → A posts publicly → B follows A, sees post ranked by client-verified trust → B clears site data, recovers from word list in <1 min, still has identity and follows → A DMs B; open the SQLite file and show ciphertext → open simlab, load the baseline 10k-account scenario, drag decay 0.35→0.5, watch the reach distribution and newcomer-ceiling metric move → (stretch) fresh account C burns its 5 cold tokens and hits the request tray.
 
@@ -109,6 +109,13 @@ Per-instance mode disabling profile customization: no display names, bios, or ac
 - [x] Client: when the instance's `/meta` says imageboard mode, hide profile editing and never render profile records — short account ids everywhere (the client stays instance-agnostic: both modes supported).
 - [x] Tests both sides; protocol §6 updated (done in the same change as this entry).
 
+## Owner addition — dev seeding (added 2026-08-21)
+
+Repeatable manual-testing fixtures without hand-driving browser sessions. The seeder acts as N real clients through the web client's own crypto/API modules (never touches the DB), so it doubles as a standing full-stack exercise of signup → auth → posts → follows → DMs, including a cold DM landing in the request tray.
+
+- [x] `web/scripts/seed.ts` + `seed-fixture.json` (8-persona cast: 1-hop/2-hop trust structure from alice's vantage, a newcomer, and a stranger who spends a cold token); root seeds derived deterministically from handles, so account ids are stable across reseeds; recovery word lists written to `testKeys/seed-personas.json` (gitignored) for entering any persona via the browser Recover flow.
+- [x] `make seed` (needs the dev server running; `SEED_API_BASE` overridable) and `make reset` (delete the SQLite files; stop server first, restart after). Fresh-DB only — reruns exit 1 with the reset recipe on the first `account_exists` 409.
+
 ---
 
 ## Working agreements for implementing agents
@@ -117,3 +124,4 @@ Per-instance mode disabling profile customization: no display names, bios, or ac
 - Never violate the invariants list in [`architecture.md`](architecture.md) — including "no primary-instance privilege"; when a task seems to require it, stop and surface the conflict instead.
 - Any change to reach algorithms or crypto updates the matching [explainer](explainers/) in the same change; any change to a published constant cites a checked-in simlab scenario (once Phase S lands).
 - Update this file's checkboxes and the "Measured" notes as you go; it is the coordination surface between sessions.
+- Conserve the owner's plan usage: hand self-contained work to subagents on an explicitly chosen non-Fable model (haiku for mechanical work, sonnet for most search/code tasks, opus for hard substeps), and give each subagent the file paths, doc references, and constraints it needs — see "Subagents & model selection" in CLAUDE.md.

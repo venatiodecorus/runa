@@ -42,6 +42,15 @@ Two things are deliberately implemented twice (Go in `server/internal`, TS in `p
 
 Key formats: identity = Ed25519 root key (account ID = base64url of the pubkey) signing per-device certs; all stored data = JCS-canonical-JSON records with detached Ed25519 signatures, versioned (`v`/`alg`) from day one; tier-2 DMs = stateless hybrid X25519+HKDF+XChaCha20-Poly1305 envelopes per recipient *device*. Published constants live in exactly `server/internal/trust/constants.go`, `packages/core/src/constants.ts`, and the table in `docs/trust-and-reach.md` — a shared vector asserts they agree.
 
+## Subagents & model selection (conserve plan usage)
+
+The main session typically runs on an expensive model (Fable). To conserve the owner's plan usage:
+
+- **Delegate liberally.** Where appropriate, the main thread should hand self-contained work to subagents — broad searches, multi-file reading/summarization, running and interpreting tests, mechanical/repetitive edits, vector generation — and keep orchestration, design judgment, and invariant-sensitive decisions in the main thread.
+- **Always pass an explicit non-Fable `model` when spawning a subagent** (Agent tool, workflow `agent()` calls). Never let a subagent default-inherit Fable. Rough guide: `haiku` for cheap mechanical work (file listing, formulaic edits, running commands), `sonnet` for most search/code/summarization tasks, `opus` for genuinely hard review/design substeps.
+- **Avoid `subagent_type: "fork"`** — forks always inherit the parent's model and ignore the `model` override.
+- **Supply full context in the subagent's prompt.** Fresh subagents see none of the conversation: give them the concrete file paths, which docs to read (`docs/poc-plan.md`, `docs/protocol.md`, the invariants in `docs/architecture.md`), the constraints that apply, and the exact output expected.
+
 ## Hard rules
 
 - **Invariants in `docs/architecture.md` §"Non-negotiable invariants" override convenience.** If a task seems to require violating one (e.g., server touching a decryption key, trust from behavioral signals, purchasable reach), stop and surface the conflict instead of implementing.

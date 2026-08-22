@@ -92,6 +92,8 @@ Plaintext `P` is itself a small JSON: `{"body": "...", "conversation": "<sorted 
 
 Per design §7.1(3): sender's client enumerates the concrete recipient set locally ("My follows" = hop 1, "My web" = hop 2 above threshold), generates a random epoch key, distributes it once per recipient device over the tier-2 channel, and posts reference `epoch_id`. Rotate on membership change + max age 30 days. Snapshot semantics per design §7.2. Formats to be specified before M5 begins.
 
+**Forward constraint (design §18):** specify the epoch recipient set as an *abstract source* — graph-derived scope in M5, explicit group roster later — so private groups reuse this exact mechanism rather than forking it. Group record types (`group`, `group-admin-cert`, `group-member-add`/`-remove`, `group-invite`, group posts) are reserved alongside the other later-milestone types in §3.1: extend this spec with vectors before implementing.
+
 ## 6. Server API (v1, PoC surface)
 
 Base path `/api/v1`. JSON. Errors: `{"error": {"code": "<machine code>", "message": "..."}}`.

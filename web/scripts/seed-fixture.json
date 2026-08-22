@@ -1,0 +1,92 @@
+{
+  "comment": "Dev seeding cast for `make seed` (web/scripts/seed.ts). Handles derive deterministic root seeds, so account ids are stable across reseeds. Graph shape, seen from alice: 1-hop = bob/carol/erin; 2-hop = dan (via carol) and frank (via erin); grace and zed have no trust path to anyone (newcomer / stranger). zed's dm exercises the cold-outreach request tray.",
+  "personas": [
+    {
+      "handle": "alice",
+      "display_name": "Alice Ashe",
+      "bio": "Field ecologist. Moss enthusiast. Posting from wherever the survey takes me.",
+      "follows": ["bob", "carol", "erin"],
+      "posts": [
+        "Day one of the wetland survey. The waders leak. Morale high anyway.",
+        "Found a moss patch the size of a dinner table today. No notes, just joy.",
+        "Reminder that 'quick field visit' is a phrase with no basis in reality.",
+        "Back from the survey. 340 specimens logged, 1 boot lost to the bog. Worth it."
+      ]
+    },
+    {
+      "handle": "bob",
+      "display_name": "Bob Birch",
+      "bio": "Woodworker. I make chairs that outlive their owners.",
+      "follows": ["alice", "carol"],
+      "posts": [
+        "Glued up the walnut chair frames this morning. The shop smells incredible.",
+        "Hot take: sandpaper grits below 120 are a personality test.",
+        "Chair no. 44 delivered today. The client sat down and just said 'oh'. Best review I'll ever get."
+      ]
+    },
+    {
+      "handle": "carol",
+      "display_name": "Carol Chen",
+      "bio": "Bread, bikes, and occasionally both at once.",
+      "follows": ["alice", "bob", "dan"],
+      "posts": [
+        "Sourdough starter survived my week away. Stronger than most friendships.",
+        "Cycled 60km for a bakery that turned out to be closed. The ride back was quieter.",
+        "New personal best: dough to table in 26 hours. The crumb shots are real."
+      ]
+    },
+    {
+      "handle": "dan",
+      "display_name": "Dan Okafor",
+      "bio": "Amateur astronomer. Clouds are my nemesis.",
+      "follows": ["carol", "bob"],
+      "posts": [
+        "Clear skies forecast tonight. I have been hurt before, but I'm setting up the scope.",
+        "Saturn's rings through the new eyepiece. My neighbor came out in a bathrobe to look. This is what it's for."
+      ]
+    },
+    {
+      "handle": "erin",
+      "display_name": "Erin Silva",
+      "bio": "Archivist. Old maps, older grudges.",
+      "follows": ["alice", "frank"],
+      "posts": [
+        "Digitizing a 1780s harbor map today. Someone doodled a very smug whale in the margin.",
+        "The archive's radiator has two settings: off and Venus. Today it chose Venus."
+      ]
+    },
+    {
+      "handle": "frank",
+      "display_name": "Frank Mori",
+      "bio": "Retired ferry captain. Now I just watch the boats.",
+      "follows": ["erin"],
+      "posts": [
+        "Forty years on the water and I still walk to the harbor every morning. Old habits.",
+        "The new ferry sounded her horn twice passing the point today. The new captain remembers."
+      ]
+    },
+    {
+      "handle": "grace",
+      "display_name": "Grace Novak",
+      "bio": "New here. Learning to throw pots, mostly throwing them away.",
+      "follows": ["alice", "frank"],
+      "posts": [
+        "First post! Wheel-throwing class no. 3 and I finally made a bowl that is recognizably a bowl."
+      ]
+    },
+    {
+      "handle": "zed",
+      "display_name": "Zed",
+      "bio": "",
+      "follows": [],
+      "posts": [
+        "Anyone out there?"
+      ]
+    }
+  ],
+  "dms": [
+    { "from": "alice", "to": "bob", "body": "Is chair no. 45 still on track? I have a bog-damaged boot that needs somewhere dignified to retire." },
+    { "from": "bob", "to": "alice", "body": "On track. The boot can have the footstool. No charge for veterans of the wetland campaign." },
+    { "from": "zed", "to": "alice", "body": "hey — found your moss posts through a search. got questions about your survey site?" }
+  ]
+}

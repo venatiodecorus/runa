@@ -102,7 +102,7 @@ From design §1; violations are protocol changes requiring explicit sign-off, ne
 2. Penalties throttle reach to strangers; they never sever chosen edges or delete content.
 3. Server never holds a decryption key for tier-2/3 content, including via report flows.
 4. Nothing renders as trusted unless the client's own computation agrees.
-5. Trust inputs are deliberate acts only (follow, mute) — never behavioral signals.
+5. Trust inputs are deliberate acts only (follow, mute) — never behavioral signals, and never group co-membership once groups exist (design §18: groups are an audience primitive, not a trust primitive).
 6. Verification/attestation never gates capability (TOFU everywhere).
 7. All algorithms and signal types are public; the only unpublished values are operational friction thresholds, and that boundary is disclosed.
 8. No primary-instance privilege in code; instances publish their running constants via `/meta` (design §15).
