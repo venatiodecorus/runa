@@ -1,0 +1,55 @@
+{
+  "description": "Scope enumeration (protocol §5.1) over a graph fixture (GraphView shape, as trust-graph-01). `follows` = the viewer's hop-1 follow list MINUS any account the viewer currently mutes (design §7.1: a mute is a membership-removal event, so a muted-but-followed account is excluded from BOTH scopes). `web` = every account within the hop cap whose trust from the viewer's vantage clears `feed_surface_threshold`, via trustMap. V follows A, B, and M but mutes M: M is excluded from the `follows` scope despite being followed, and — because trustMap also prunes propagation through a muted account — M contributes nothing to `web` either, pruning hop-2 account E (reachable only through M) out of the web scope entirely (its trust drops to 0, below threshold). Implementations must reproduce `expected_members` for each case and reject the reserved `roster` source.",
+  "graph": {
+    "follows": {
+      "V": [
+        "A",
+        "B",
+        "M"
+      ],
+      "A": [
+        "C"
+      ],
+      "B": [
+        "C"
+      ],
+      "M": [
+        "E"
+      ]
+    },
+    "mutes": [
+      "M"
+    ]
+  },
+  "constants": {
+    "hop_cap": 2,
+    "per_hop_decay": 0.35,
+    "multi_path_sum_cap": 2,
+    "feed_surface_threshold": 0.3
+  },
+  "viewer": "V",
+  "cases": [
+    {
+      "name": "follows scope = hop-1 follow list minus mutes (muted-but-followed M excluded)",
+      "source": "follows",
+      "expected_members": [
+        "A",
+        "B"
+      ]
+    },
+    {
+      "name": "web scope = trust-threshold reachable set; mute prunes hop-2 account E",
+      "source": "web",
+      "expected_members": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    {
+      "name": "reserved scope source is rejected",
+      "source": "roster",
+      "error": true
+    }
+  ]
+}

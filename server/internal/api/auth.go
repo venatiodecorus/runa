@@ -143,6 +143,26 @@ func (s *server) authAccount(w http.ResponseWriter, r *http.Request) string {
 	return account
 }
 
+// optionalAuthAccount resolves a bearer token when the request carries one,
+// returning "" for anonymous or stale callers WITHOUT writing an error. It
+// exists for the member-only tier-3 read paths, which hide non-membership by
+// omission — a 401/403 there would itself disclose that something exists
+// (docs/protocol.md §6, design §8).
+func (s *server) optionalAuthAccount(r *http.Request) (string, error) {
+	token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !ok || token == "" {
+		return "", nil
+	}
+	account, _, expiresAt, found, err := s.st.GetSession(token)
+	if err != nil {
+		return "", err
+	}
+	if !found || expiresAt <= rfc3339(time.Now()) {
+		return "", nil
+	}
+	return account, nil
+}
+
 func readAll(w http.ResponseWriter, r *http.Request) ([]byte, error) {
 	return io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 }

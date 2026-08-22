@@ -55,7 +55,7 @@ export function Profile({
       </form>
       <ProfileCard key={target} session={session} account={target} imageboard={imageboard} />
       <h3>Posts</h3>
-      <PostList account={target} />
+      <PostList session={session} account={target} />
     </section>
   );
 }

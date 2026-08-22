@@ -59,6 +59,7 @@ func New(st *store.Store, cfg Config) http.Handler {
 	mux.HandleFunc("GET /api/v1/budget", s.handleGetBudget)
 	mux.HandleFunc("GET /api/v1/dm/with/{id}", s.handleDMWith)
 	mux.HandleFunc("GET /api/v1/dm/inbox", s.handleDMInbox)
+	mux.HandleFunc("GET /api/v1/epochs/keys", s.handleEpochKeys)
 	mux.HandleFunc("POST /api/v1/records", s.handleIngestRecord)
 	mux.HandleFunc("GET /api/v1/auth/challenge", s.handleAuthChallenge)
 	mux.HandleFunc("POST /api/v1/auth/session", s.handleAuthSession)

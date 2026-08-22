@@ -5,10 +5,18 @@
  * viewer's entitled 2-hop slice with the INSTANCE's constants (/meta,
  * reference fallback), and the local order is always what renders. Divergence
  * from the server's proposal and non-default instance constants are badged.
+ *
+ * Tier-3 scoped posts arrive in the same /feed response (protocol §5.6:
+ * scoped posts surface only if the viewer's own trust clears
+ * feed_surface_threshold, exactly as tier-1 — key possession is necessary
+ * but never sufficient). Re-ranking treats them identically to tier-1 (trust
+ * math is tier-blind, rankFeed never looks at `type`); this module only adds
+ * decryption AFTER verification, via crypto/epochs.ts, plus a scope badge.
  */
 import { useCallback, useEffect, useState } from "react";
-import { verifyAuthoredRecord } from "@runa/core";
+import { verifyAuthoredRecord, type ScopedPostRecord } from "@runa/core";
 import { fetchMeta, getFeed, getGraph2Hop, type FeedResponse } from "../api/client.js";
+import { decryptScopedPosts, scopeLabel, type OpenScopedPostResult } from "../crypto/epochs.js";
 import { instanceConstants, rankFeed, type RankedFeed, type RankedItem } from "../feed/rank.js";
 import { shortId, styles } from "./theme.js";
 import type { Session } from "./session.js";
@@ -17,6 +25,8 @@ interface FeedState {
   ranked: RankedFeed;
   /** Verification outcome per ranked-item id; null = verified OK. */
   errors: Map<string, string | null>;
+  /** Decrypted scoped-post bodies, keyed by ranked-item id (record id). Absent = not a scoped post. */
+  opened: Map<string, OpenScopedPostResult>;
   deviantKeys: string[];
   sliceMs: number;
   recomputeMs: number;
@@ -49,8 +59,18 @@ export function Feed({ session }: { session: Session }) {
       `[runa] 2-hop slice fetch ${sliceMs.toFixed(1)}ms · local trustMap+re-rank ${recomputeMs.toFixed(1)}ms` +
         ` (${feed.items.length} candidates)`,
     );
-    setState({ ranked, errors: verifyItems(feed, ranked), deviantKeys, sliceMs, recomputeMs });
-  }, [session.root.account]);
+    const errors = verifyItems(feed, ranked);
+
+    // Decrypt scoped posts AFTER verification — only records that verified
+    // OK are ever handed to the decryptor (verify-then-decrypt-render, §5.4).
+    const all = [...ranked.normal, ...ranked.belowThreshold, ...ranked.noPath];
+    const scopedRecords = all
+      .filter((r) => errors.get(r.id) === null && r.item.record.type === "scoped-post")
+      .map((r) => r.item.record as ScopedPostRecord);
+    const opened = await decryptScopedPosts({ session, records: scopedRecords });
+
+    setState({ ranked, errors, opened, deviantKeys, sliceMs, recomputeMs });
+  }, [session]);
 
   useEffect(() => {
     setState(null);
@@ -60,7 +80,7 @@ export function Feed({ session }: { session: Session }) {
   if (error) return <p style={{ color: "crimson" }}>Could not load feed: {error}</p>;
   if (state === null) return <p style={styles.muted}>Loading feed…</p>;
 
-  const { ranked, errors, deviantKeys, sliceMs, recomputeMs } = state;
+  const { ranked, errors, opened, deviantKeys, sliceMs, recomputeMs } = state;
   const hidden = ranked.belowThreshold.length;
 
   return (
@@ -82,7 +102,7 @@ export function Feed({ session }: { session: Session }) {
         </p>
       )}
       {ranked.normal.map((r) => (
-        <FeedCard key={r.id} item={r} error={errors.get(r.id) ?? null} />
+        <FeedCard key={r.id} item={r} error={errors.get(r.id) ?? null} opened={opened.get(r.id)} />
       ))}
 
       {hidden > 0 && (
@@ -94,7 +114,7 @@ export function Feed({ session }: { session: Session }) {
           </button>
           {expanded &&
             ranked.belowThreshold.map((r) => (
-              <FeedCard key={r.id} item={r} error={errors.get(r.id) ?? null} />
+              <FeedCard key={r.id} item={r} error={errors.get(r.id) ?? null} opened={opened.get(r.id)} />
             ))}
         </div>
       )}
@@ -129,7 +149,20 @@ function verifyItems(feed: FeedResponse, ranked: RankedFeed): Map<string, string
   return errors;
 }
 
-function FeedCard({ item, error }: { item: RankedItem; error: string | null }) {
+function AudienceBadge({ scoped, opened }: { scoped: boolean; opened?: OpenScopedPostResult }) {
+  if (!scoped) return null;
+  const label = opened?.ok ? scopeLabel(opened.scopeSource) : "Scoped";
+  return (
+    <span
+      style={{ ...styles.muted, marginLeft: "0.5rem" }}
+      title="protocol §5: encrypted under a rotating epoch key, member-only delivery"
+    >
+      🔒 {label}
+    </span>
+  );
+}
+
+function FeedCard({ item, error, opened }: { item: RankedItem; error: string | null; opened?: OpenScopedPostResult }) {
   const { record, author } = item.item;
   if (error !== null) {
     // Verification failed: visible placeholder, content never rendered.
@@ -140,6 +173,29 @@ function FeedCard({ item, error }: { item: RankedItem; error: string | null }) {
       </div>
     );
   }
+
+  const scoped = record.type === "scoped-post";
+  if (scoped && (opened === undefined || !opened.ok)) {
+    // Distinguished benign state ("no-key") vs. a hard decryption failure —
+    // never render content in either case (§5.4 verify-then-decrypt-render).
+    const benign = opened?.reason === "no-key";
+    return (
+      <div style={benign ? styles.card : styles.errorCard}>
+        <strong>Unreadable scoped post</strong>
+        <AudienceBadge scoped={scoped} opened={opened} />
+        {benign ? (
+          <div style={styles.muted}>
+            Shared before this device could receive the epoch key — try syncing again later.
+          </div>
+        ) : (
+          <div style={styles.muted}>Failed to decrypt ({opened?.detail}) — not displayed.</div>
+        )}
+        <div style={{ ...styles.muted, marginTop: "0.3rem" }}>{record.created_at}</div>
+      </div>
+    );
+  }
+
+  const body = scoped && opened?.ok ? opened.body : String(record.body ?? "");
   return (
     <div style={styles.card}>
       <div style={{ ...styles.muted, marginBottom: "0.35rem" }}>
@@ -150,8 +206,9 @@ function FeedCard({ item, error }: { item: RankedItem; error: string | null }) {
           {" "}
           · {item.own ? "you" : `trust ${trimTrust(item.trust)}`}
         </span>
+        <AudienceBadge scoped={scoped} opened={opened} />
       </div>
-      <div style={{ whiteSpace: "pre-wrap" }}>{String(record.body ?? "")}</div>
+      <div style={{ whiteSpace: "pre-wrap" }}>{body}</div>
       <div style={{ ...styles.muted, marginTop: "0.4rem" }}>
         {record.created_at}
         <span title="signature and device-cert chain verified by this client"> · verified ✓</span>

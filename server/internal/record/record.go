@@ -60,6 +60,12 @@ func (r *Record) String(key string) (string, bool) {
 	return s, ok
 }
 
+// Map returns the named field if it is a JSON object.
+func (r *Record) Map(key string) (map[string]any, bool) {
+	m, ok := r.m[key].(map[string]any)
+	return m, ok
+}
+
 // RootSigned reports whether this record's type is root-signed.
 func (r *Record) RootSigned() bool { return RootSignedTypes[r.Type()] }
 

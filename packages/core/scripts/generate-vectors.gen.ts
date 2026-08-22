@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { it } from "vitest";
 import { ed25519, x25519 } from "@noble/curves/ed25519";
-import { hexToBytes } from "@noble/hashes/utils";
+import { hexToBytes, bytesToHex } from "@noble/hashes/utils";
 import { CONSTANTS } from "../src/constants.js";
 import { b64url } from "../src/encoding.js";
 import { canonicalize } from "../src/jcs.js";
@@ -19,6 +19,14 @@ import { signRecord, signingBytes } from "../src/records.js";
 import { subjectiveTrust } from "../src/trust.js";
 import { dailyBudget, isColdInitiation } from "../src/budgets.js";
 import { sealDm, openDm } from "../src/envelope.js";
+import {
+  makeEpoch,
+  sealEpochKey,
+  openEpochKey,
+  sealScopedPost,
+  openScopedPost,
+  enumerateScope,
+} from "../src/epochs.js";
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), "../../../docs/protocol/vectors");
 
@@ -177,6 +185,210 @@ it("regenerates protocol vectors", () => {
       tamper_mutations: [
         { field: "to", value: senderId, expect: "decryption failure (AAD binding)" },
         { field: "ciphertext", value: "AAAA" + dm.ciphertext.slice(4), expect: "decryption failure" },
+      ],
+    });
+  }
+
+  // --- epoch-v1-01: tier-3 epoch/epoch-key/scoped-post, all keys given -----
+  {
+    const authorRoot = hexToBytes("a1".repeat(32));
+    const authorDev1Sign = hexToBytes("a2".repeat(32)); // author's posting device (ed25519 only — never receives a wrap in this vector)
+    const authorDev2Sign = hexToBytes("a3".repeat(32));
+    const authorDev2Kex = hexToBytes("a4".repeat(32)); // author's second device — receives the self-grant
+    const recipRoot = hexToBytes("b1".repeat(32));
+    const recipDevSign = hexToBytes("b2".repeat(32));
+    const recipDevKex = hexToBytes("b3".repeat(32));
+
+    const authorId = b64url.encode(ed25519.getPublicKey(authorRoot));
+    const authorDev1Id = b64url.encode(ed25519.getPublicKey(authorDev1Sign));
+    const authorDev2Id = b64url.encode(ed25519.getPublicKey(authorDev2Sign));
+    const authorDev2KexPub = x25519.getPublicKey(authorDev2Kex);
+    const recipId = b64url.encode(ed25519.getPublicKey(recipRoot));
+    const recipDevId = b64url.encode(ed25519.getPublicKey(recipDevSign));
+    const recipDevKexPub = x25519.getPublicKey(recipDevKex);
+
+    let ctr = 0;
+    const fakeRandom = (n: number) => new Uint8Array(n).map((_, i) => (i + ++ctr) % 256);
+
+    const { record: epoch, epochId } = makeEpoch({
+      source: "follows",
+      author: authorId,
+      device: authorDev1Id,
+      deviceSignSeed: authorDev1Sign,
+      createdAt: T0,
+    });
+    // A second, otherwise-unrelated epoch — used only to supply a genuinely
+    // different (but valid-looking) epoch id for the wrap-replay tamper case.
+    const { epochId: otherEpochId } = makeEpoch({
+      source: "web",
+      author: authorId,
+      device: authorDev1Id,
+      deviceSignSeed: authorDev1Sign,
+      createdAt: T0,
+    });
+
+    const epochKey = hexToBytes("c1".repeat(32));
+
+    const epochKeyToRecipient = sealEpochKey({
+      epochId,
+      epochKey,
+      to: recipId,
+      author: authorId,
+      device: authorDev1Id,
+      deviceSignSeed: authorDev1Sign,
+      createdAt: T0,
+      recipients: [{ device: recipDevId, kexPub: recipDevKexPub }],
+      random: fakeRandom,
+    });
+    const epochKeySelfGrant = sealEpochKey({
+      epochId,
+      epochKey,
+      to: authorId,
+      author: authorId,
+      device: authorDev1Id,
+      deviceSignSeed: authorDev1Sign,
+      createdAt: T0,
+      recipients: [{ device: authorDev2Id, kexPub: authorDev2KexPub }],
+      random: fakeRandom,
+    });
+    const scopedPost = sealScopedPost({
+      body: "hello, web scope",
+      epochId,
+      epochKey,
+      author: authorId,
+      device: authorDev1Id,
+      deviceSignSeed: authorDev1Sign,
+      createdAt: T0,
+      random: fakeRandom,
+    });
+
+    // self-checks
+    const unwrappedForRecipient = openEpochKey(epochKeyToRecipient, { deviceId: recipDevId, kexSeed: recipDevKex });
+    const unwrappedForSelf = openEpochKey(epochKeySelfGrant, { deviceId: authorDev2Id, kexSeed: authorDev2Kex });
+    if (b64url.encode(unwrappedForRecipient) !== b64url.encode(epochKey)) {
+      throw new Error("epoch-key self-check failed: recipient unwrap mismatch");
+    }
+    if (b64url.encode(unwrappedForSelf) !== b64url.encode(epochKey)) {
+      throw new Error("epoch-key self-check failed: self-grant unwrap mismatch");
+    }
+    const openedPost = openScopedPost(scopedPost, epochKey);
+    if (openedPost.body !== "hello, web scope") throw new Error("scoped-post self-check failed");
+
+    // tamper case (b) must actually fail here too, not just in the consuming suite.
+    let wrongEpochThrew = false;
+    try {
+      openEpochKey({ ...epochKeyToRecipient, epoch: otherEpochId }, { deviceId: recipDevId, kexSeed: recipDevKex });
+    } catch {
+      wrongEpochThrew = true;
+    }
+    if (!wrongEpochThrew) throw new Error("epoch-key tamper self-check failed: wrong-epoch unwrap should have failed");
+
+    write("epoch-v1-01.json", {
+      description:
+        "Tier-3 epoch/epoch-key/scoped-post (protocol §5). All private keys are test keys (hex seeds). " +
+        "Implementations must: verify each record's signature; unwrap `epoch_key_hex` from both " +
+        "`epoch_key_to_recipient` (as the recipient device) and `epoch_key_self_grant` (as the author's second " +
+        "device) and check it matches byte-for-byte; open `scoped_post` with that key and obtain `plaintext`; " +
+        "fail on every case in `tamper_cases`. Servers verify signatures/structure only — they never hold `K_e`.",
+      seeds: {
+        author_root_ed25519: "a1".repeat(32),
+        author_device1_ed25519: "a2".repeat(32),
+        author_device2_ed25519: "a3".repeat(32),
+        author_device2_x25519: "a4".repeat(32),
+        recipient_root_ed25519: "b1".repeat(32),
+        recipient_device_ed25519: "b2".repeat(32),
+        recipient_device_x25519: "b3".repeat(32),
+      },
+      keys: {
+        author: authorId,
+        author_device1: authorDev1Id,
+        author_device2: authorDev2Id,
+        recipient: recipId,
+        recipient_device: recipDevId,
+      },
+      epoch,
+      epoch_id: epochId,
+      other_epoch_id: otherEpochId,
+      epoch_key_hex: bytesToHex(epochKey),
+      epoch_key_to_recipient: epochKeyToRecipient,
+      epoch_key_self_grant: epochKeySelfGrant,
+      scoped_post: scopedPost,
+      plaintext: openedPost,
+      tamper_cases: [
+        {
+          name: "flipped bit in scoped-post ciphertext",
+          record: "scoped_post",
+          mutation: { field: "ciphertext", op: "flip first byte" },
+          expect: "AEAD authentication failure on open",
+        },
+        {
+          name: "epoch-key epoch field swapped to a different epoch",
+          record: "epoch_key_to_recipient",
+          mutation: { field: "epoch", value: otherEpochId },
+          expect: "unwrap fails: HKDF info is bound to the ORIGINAL epoch id, not the record's (tampered) epoch field",
+        },
+        {
+          name: "scoped-post author swapped (AAD transplant)",
+          record: "scoped_post",
+          mutation: { field: "author", value: recipId },
+          expect: "AEAD authentication failure on open: AAD binds author",
+        },
+        {
+          name: "scoped-post nonce tampered without re-signing",
+          record: "scoped_post",
+          mutation: { field: "nonce", value: b64url.encode(new Uint8Array(24)) },
+          expect: "signature verification fails (record was mutated post-signing)",
+        },
+      ],
+    });
+  }
+
+  // --- scope-01: scope enumeration over a graph fixture --------------------
+  {
+    const scopeGraph = {
+      follows: { V: ["A", "B", "M"], A: ["C"], B: ["C"], M: ["E"] },
+      mutes: ["M"],
+    };
+    const viewer = "V";
+    const followMembers = enumerateScope(scopeGraph, viewer, "follows");
+    const webMembers = enumerateScope(scopeGraph, viewer, "web");
+    if (JSON.stringify(followMembers) !== JSON.stringify(["A", "B"])) {
+      throw new Error(`scope self-check failed: follows = ${JSON.stringify(followMembers)}`);
+    }
+    if (JSON.stringify(webMembers) !== JSON.stringify(["A", "B", "C"])) {
+      throw new Error(`scope self-check failed: web = ${JSON.stringify(webMembers)}`);
+    }
+    let rosterThrew = false;
+    try {
+      enumerateScope(scopeGraph, viewer, "roster");
+    } catch {
+      rosterThrew = true;
+    }
+    if (!rosterThrew) throw new Error("scope self-check failed: reserved source 'roster' should be rejected");
+
+    write("scope-01.json", {
+      description:
+        "Scope enumeration (protocol §5.1) over a graph fixture (GraphView shape, as trust-graph-01). " +
+        "`follows` = the viewer's hop-1 follow list MINUS any account the viewer currently mutes (design §7.1: " +
+        "a mute is a membership-removal event, so a muted-but-followed account is excluded from BOTH scopes). " +
+        "`web` = every account within the hop cap whose trust from the viewer's vantage clears " +
+        "`feed_surface_threshold`, via trustMap. V follows A, B, and M but mutes M: M is excluded from the " +
+        "`follows` scope despite being followed, and — because trustMap also prunes propagation through a muted " +
+        "account — M contributes nothing to `web` either, pruning hop-2 account E (reachable only through M) out " +
+        "of the web scope entirely (its trust drops to 0, below threshold). " +
+        "Implementations must reproduce `expected_members` for each case and reject the reserved `roster` source.",
+      graph: scopeGraph,
+      constants: {
+        hop_cap: CONSTANTS.hop_cap,
+        per_hop_decay: CONSTANTS.per_hop_decay,
+        multi_path_sum_cap: CONSTANTS.multi_path_sum_cap,
+        feed_surface_threshold: CONSTANTS.feed_surface_threshold,
+      },
+      viewer,
+      cases: [
+        { name: "follows scope = hop-1 follow list minus mutes (muted-but-followed M excluded)", source: "follows", expected_members: followMembers },
+        { name: "web scope = trust-threshold reachable set; mute prunes hop-2 account E", source: "web", expected_members: webMembers },
+        { name: "reserved scope source is rejected", source: "roster", error: true },
       ],
     });
   }

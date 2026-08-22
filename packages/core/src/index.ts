@@ -40,3 +40,18 @@ export {
   verifyDeviceBinding,
   verifyAuthoredRecord,
 } from "./certs.js";
+export {
+  type ScopeSource,
+  type EpochScope,
+  type EpochRecord,
+  type EpochKeyRecord,
+  type ScopedPostRecord,
+  type ScopedPostPlaintext,
+  makeEpoch,
+  sealEpochKey,
+  openEpochKey,
+  sealScopedPost,
+  openScopedPost,
+  enumerateScope,
+  needsRotation,
+} from "./epochs.js";

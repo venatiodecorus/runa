@@ -39,7 +39,15 @@ func ValidateDMEnvelope(env *Record) error {
 			return fmt.Errorf("%s must be a non-empty string", field)
 		}
 	}
-	recipients, ok := env.m["recipients"].([]any)
+	return validateWraps(env.m)
+}
+
+// validateWraps checks the per-device wrap array shared by the tier-2
+// envelope (§4) and tier-3 key grants (§5.3): a non-empty array of objects
+// each carrying device/eph_pub/wrap_nonce/wrapped_key strings. The wrap
+// contents are OPAQUE — the server can never unwrap them.
+func validateWraps(m map[string]any) error {
+	recipients, ok := m["recipients"].([]any)
 	if !ok || len(recipients) == 0 {
 		return errors.New("recipients must be a non-empty array")
 	}

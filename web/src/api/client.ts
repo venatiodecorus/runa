@@ -7,7 +7,14 @@
  * Framework-free: no React imports. The session token lives in module memory
  * only — never in IndexedDB or localStorage.
  */
-import type { DeviceCert, DeviceRevoke, DmRecord, RunaRecord } from "@runa/core";
+import type {
+  DeviceCert,
+  DeviceRevoke,
+  DmRecord,
+  EpochKeyRecord,
+  EpochRecord,
+  RunaRecord,
+} from "@runa/core";
 import type { PassphraseBackup } from "../crypto/recoverykit.js";
 
 export const API_BASE: string =
@@ -141,6 +148,12 @@ export function postRecord(record: RunaRecord): Promise<{ id: string }> {
   return request("/records", { method: "POST", body: JSON.stringify(record), auth: true });
 }
 
+/**
+ * GET /accounts/{id}/records — public endpoint, but the bearer token (attached
+ * whenever a session exists) is what entitles a member to `type=scoped-post`
+ * results: the server silently omits scoped posts on anonymous requests
+ * (protocol §6), including the viewer's own.
+ */
 export function listRecords(
   id: string,
   opts: { type?: string; limit?: number; before?: string } = {},
@@ -150,7 +163,7 @@ export function listRecords(
   if (opts.limit !== undefined) params.set("limit", String(opts.limit));
   if (opts.before !== undefined) params.set("before", opts.before);
   const qs = params.toString();
-  return request(`/accounts/${encodeURIComponent(id)}/records${qs ? `?${qs}` : ""}`);
+  return request(`/accounts/${encodeURIComponent(id)}/records${qs ? `?${qs}` : ""}`, { auth: true });
 }
 
 // --- graph & feed (protocol §6) ---------------------------------------------
@@ -266,6 +279,32 @@ export async function authenticate(
   const { challenge } = await authChallenge();
   const { token } = await authSession({ account, device, challenge, sig: signChallenge(challenge) });
   setSessionToken(token);
+}
+
+// --- tier-3 scoped posts (protocol §5/§6) -----------------------------------
+
+export interface EpochsKeysResponse {
+  /** epoch-key records where to = the authenticated viewer. */
+  keys: EpochKeyRecord[];
+  /** The referenced epoch record for each key, keyed by epoch id — avoids a round-trip per key. */
+  epochs: Record<string, EpochRecord>;
+  next_before: string | null;
+}
+
+/**
+ * GET /epochs/keys (auth) — the viewer's key grants (reverse-chronological,
+ * paginated as §6 records). `epoch`/`epoch-key`/`scoped-post` all flow
+ * through the shared POST /records (see `postRecord`); this is the one
+ * tier-3-specific read endpoint.
+ */
+export function getEpochsKeys(
+  opts: { limit?: number; before?: string } = {},
+): Promise<EpochsKeysResponse> {
+  const params = new URLSearchParams();
+  if (opts.limit !== undefined) params.set("limit", String(opts.limit));
+  if (opts.before !== undefined) params.set("before", opts.before);
+  const qs = params.toString();
+  return request(`/epochs/keys${qs ? `?${qs}` : ""}`, { auth: true });
 }
 
 // --- passphrase backup ------------------------------------------------------

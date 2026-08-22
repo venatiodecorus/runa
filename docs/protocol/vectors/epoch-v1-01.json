@@ -1,0 +1,124 @@
+{
+  "description": "Tier-3 epoch/epoch-key/scoped-post (protocol §5). All private keys are test keys (hex seeds). Implementations must: verify each record's signature; unwrap `epoch_key_hex` from both `epoch_key_to_recipient` (as the recipient device) and `epoch_key_self_grant` (as the author's second device) and check it matches byte-for-byte; open `scoped_post` with that key and obtain `plaintext`; fail on every case in `tamper_cases`. Servers verify signatures/structure only — they never hold `K_e`.",
+  "seeds": {
+    "author_root_ed25519": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+    "author_device1_ed25519": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+    "author_device2_ed25519": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+    "author_device2_x25519": "a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4",
+    "recipient_root_ed25519": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+    "recipient_device_ed25519": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+    "recipient_device_x25519": "b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3"
+  },
+  "keys": {
+    "author": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+    "author_device1": "Zej5sLxurhJBafBXb5c2LSlajPX3cLReFDV85kfTPuw",
+    "author_device2": "rPErSswcZgqDJq7TQDnvtyil5JZIgkD1CpMqt6ulF1E",
+    "recipient": "RyG1tjInLmWmjdp6wltBhfiwGRbbGFwUKH25Lit3D64",
+    "recipient_device": "VRVPQgZepaG-oFRjgmviaE65LfksEAAnqrquV8pVQgc"
+  },
+  "epoch": {
+    "v": 1,
+    "type": "epoch",
+    "author": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+    "device": "Zej5sLxurhJBafBXb5c2LSlajPX3cLReFDV85kfTPuw",
+    "created_at": "2026-08-20T12:00:00Z",
+    "scope": {
+      "source": "follows"
+    },
+    "sig": "zrejECDtJA13KUa-LXr9TzOJGGuEGIODkQtFZWNzIWe8rkctcg5x_hfPV3frjTlul72Re4rBKZnm5FID0cUDCQ"
+  },
+  "epoch_id": "3ME4o6cvUanFwdhK9f1fqqGNuPGWBqmd17WMNCiXXqg",
+  "other_epoch_id": "KvJ7VQEwvgHX9eb9J_OhJnBtNO7u-oZOto1Ro2KiHGA",
+  "epoch_key_hex": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+  "epoch_key_to_recipient": {
+    "v": 1,
+    "type": "epoch-key",
+    "alg": "x25519-hkdf-sha256+xchacha20poly1305",
+    "author": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+    "device": "Zej5sLxurhJBafBXb5c2LSlajPX3cLReFDV85kfTPuw",
+    "created_at": "2026-08-20T12:00:00Z",
+    "epoch": "3ME4o6cvUanFwdhK9f1fqqGNuPGWBqmd17WMNCiXXqg",
+    "to": "RyG1tjInLmWmjdp6wltBhfiwGRbbGFwUKH25Lit3D64",
+    "recipients": [
+      {
+        "device": "VRVPQgZepaG-oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+        "eph_pub": "55StiDUjeR_DT3yu1h0EtTZHDqxbj03caRqkXhc5DmY",
+        "wrap_nonce": "ISMlJykrLS8xMzU3OTs9P0FDRUdJS01P",
+        "wrapped_key": "UCCuAcK-dDsGihFM5uKrt3B5iYz7m6U-pWt5LBXK2ZvWfcynR3NNT_0Qty96Lpzc"
+      }
+    ],
+    "sig": "7BPmu6TsCdqrdMXz1rMCaEGOmh02zBW6dwmLe9zpVTyK2Yd6Epg7lO9ESaCE5QVF4X0YGXJrGouBsHPXXeq_AQ"
+  },
+  "epoch_key_self_grant": {
+    "v": 1,
+    "type": "epoch-key",
+    "alg": "x25519-hkdf-sha256+xchacha20poly1305",
+    "author": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+    "device": "Zej5sLxurhJBafBXb5c2LSlajPX3cLReFDV85kfTPuw",
+    "created_at": "2026-08-20T12:00:00Z",
+    "epoch": "3ME4o6cvUanFwdhK9f1fqqGNuPGWBqmd17WMNCiXXqg",
+    "to": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+    "recipients": [
+      {
+        "device": "rPErSswcZgqDJq7TQDnvtyil5JZIgkD1CpMqt6ulF1E",
+        "eph_pub": "kAtA1UP7cYSWq-ptwZFEG6rATvyzLAJrmRnJ3aGz1wo",
+        "wrap_nonce": "WVtdX2FjZWdpa21vcXN1d3l7fX-Bg4WH",
+        "wrapped_key": "w5usSz3wGt5hc71m-3YBmg5o9ydvXs1ccpUVkW79zMI3V8etjSAjlU00razrepAl"
+      }
+    ],
+    "sig": "eJjBavz4psw2sOvXRMnfdC4BJrQCE9hyurG6Ob12A1mxG_ionPkLtTkv_E1g3BVZi98Gr8lb0OS5zK-Cpry_Bw"
+  },
+  "scoped_post": {
+    "v": 1,
+    "type": "scoped-post",
+    "alg": "x25519-hkdf-sha256+xchacha20poly1305",
+    "author": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+    "device": "Zej5sLxurhJBafBXb5c2LSlajPX3cLReFDV85kfTPuw",
+    "created_at": "2026-08-20T12:00:00Z",
+    "epoch": "3ME4o6cvUanFwdhK9f1fqqGNuPGWBqmd17WMNCiXXqg",
+    "nonce": "cXN1d3l7fX-Bg4WHiYuNj5GTlZeZm52f",
+    "ciphertext": "howDXfHMJbzT9QeUDJ8fs86SviT_xSHR4McCn2xMd5JhyMjwihFgdF1KBQ",
+    "sig": "bLPd8FjFwTfOrI-bcZ32cPhtvF7TGy7Q5fn0AmggcU1IdwTF-x_OvV5ESPNBePStszp843SbTKC8q3UhwMy9Dw"
+  },
+  "plaintext": {
+    "body": "hello, web scope"
+  },
+  "tamper_cases": [
+    {
+      "name": "flipped bit in scoped-post ciphertext",
+      "record": "scoped_post",
+      "mutation": {
+        "field": "ciphertext",
+        "op": "flip first byte"
+      },
+      "expect": "AEAD authentication failure on open"
+    },
+    {
+      "name": "epoch-key epoch field swapped to a different epoch",
+      "record": "epoch_key_to_recipient",
+      "mutation": {
+        "field": "epoch",
+        "value": "KvJ7VQEwvgHX9eb9J_OhJnBtNO7u-oZOto1Ro2KiHGA"
+      },
+      "expect": "unwrap fails: HKDF info is bound to the ORIGINAL epoch id, not the record's (tampered) epoch field"
+    },
+    {
+      "name": "scoped-post author swapped (AAD transplant)",
+      "record": "scoped_post",
+      "mutation": {
+        "field": "author",
+        "value": "RyG1tjInLmWmjdp6wltBhfiwGRbbGFwUKH25Lit3D64"
+      },
+      "expect": "AEAD authentication failure on open: AAD binds author"
+    },
+    {
+      "name": "scoped-post nonce tampered without re-signing",
+      "record": "scoped_post",
+      "mutation": {
+        "field": "nonce",
+        "value": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "expect": "signature verification fails (record was mutated post-signing)"
+    }
+  ]
+}

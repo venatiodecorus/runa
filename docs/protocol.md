@@ -1,6 +1,6 @@
 # Protocol Specification
 
-**Status:** v0.1 (PoC-normative for M1–M3; §§ marked *outline* are direction, not yet normative).
+**Status:** v0.2 (normative for M1–M5; §§ marked *outline* are direction, not yet normative).
 **Bar (design §9):** a third party can build an independent client from this document. Until test vectors exist, that bar is unmet — writing vectors is part of each implementing milestone.
 **Versioning rule:** every record and envelope carries `v` (integer) and, for envelopes, `alg`. Implementations MUST reject unknown `v`/`alg` rather than guess. Changes to this file follow the same review process as code.
 
@@ -57,9 +57,12 @@ All server-stored user data is a **record**: a JSON object signed by a device ke
 | `unfollow` | device | follower-visible | `subject` |
 | `mute` / `unmute` | device | **private to author** — stored server-side (server sees the graph regardless, design §8) but never served to any other user | `subject` |
 | `dm` | device | ciphertext only | envelope of §4 as the record body |
+| `epoch` | device | members + author only (§5) | `scope`, `prev` (optional) |
+| `epoch-key` | device | recipient (`to`) only | `epoch`, `to`, `alg`, `recipients` — §5.3 |
+| `scoped-post` | device | members + author only; ciphertext | `epoch`, `alg`, `nonce`, `ciphertext` — §5.4 |
 | `attestation` | device | public *(outline — M6)* | `subject`, `subject_root_pub`, `method` |
 
-Later-milestone types (`report`, `invite`, epoch records) are reserved; do not improvise formats — extend this spec first.
+Later-milestone types (`report`, `invite`, group records) are reserved; do not improvise formats — extend this spec first.
 
 ## 4. Tier-2 envelope v1 (stateless hybrid)
 
@@ -88,11 +91,79 @@ Decryption: find own device in `recipients`, unwrap `K`, verify AEAD (the AAD bi
 
 Plaintext `P` is itself a small JSON: `{"body": "...", "conversation": "<sorted account ids joined by ':'>"}` — binding the conversation inside the AEAD prevents cross-conversation replay of ciphertext.
 
-## 5. Tier-3 web-scoped posts *(outline — M5)*
+## 5. Tier-3 web-scoped posts (M5)
 
-Per design §7.1(3): sender's client enumerates the concrete recipient set locally ("My follows" = hop 1, "My web" = hop 2 above threshold), generates a random epoch key, distributes it once per recipient device over the tier-2 channel, and posts reference `epoch_id`. Rotate on membership change + max age 30 days. Snapshot semantics per design §7.2. Formats to be specified before M5 begins.
+Per design §7.1(3): the author's client enumerates a concrete recipient set locally, generates a random 32-byte **epoch key** `K_e`, distributes it once to each recipient *device* using the §4 wrap mechanism, and encrypts posts under `K_e`. Snapshot semantics per design §7.2: the readable set is frozen at distribution time — later follows don't unlock history, removal doesn't un-share the past, recovery restores identity, not history.
 
-**Forward constraint (design §18):** specify the epoch recipient set as an *abstract source* — graph-derived scope in M5, explicit group roster later — so private groups reuse this exact mechanism rather than forking it. Group record types (`group`, `group-admin-cert`, `group-member-add`/`-remove`, `group-invite`, group posts) are reserved alongside the other later-milestone types in §3.1: extend this spec with vectors before implementing.
+### 5.1 Scopes (abstract recipient source — design §18 forward constraint)
+
+An epoch declares *where its membership comes from* as an abstract `scope`; the concrete frozen membership is defined by the `epoch-key` fan-out (§5.3), never recomputed by readers or the server. v1 sources:
+
+- `{"source": "follows"}` — accounts the author follows at epoch creation (hop 1), minus any the author currently mutes (design §7.1: a mute is a membership-removal event for both scopes — a muted-but-followed account receives no scoped posts).
+- `{"source": "web"}` — accounts within hop ≤ `hop_cap` whose `effective_trust` from the **author's** vantage ≥ `feed_surface_threshold`, computed with the instance's published constants (the author's local overrides, if any, do not change the wire format).
+- `{"source": "roster", ...}` — **reserved** for private groups (design §18.1): explicit membership records instead of a graph-derived set, same epoch machinery. Implementations MUST reject unknown `source` values.
+
+Scope enumeration is client authority: the server never validates that the fan-out matches the named scope (it cannot know the author's local trust overrides, and the fan-out *is* the snapshot).
+
+### 5.2 `epoch` record
+
+```jsonc
+{
+  "v": 1, "type": "epoch",
+  "author": "...", "device": "...", "created_at": "...",
+  "scope": { "source": "follows" },   // or "web"; abstract source, §5.1
+  "prev": "<record id, optional>",     // the epoch this one supersedes (rotation chain)
+  "sig": "..."
+}
+```
+
+The **epoch ID** is this record's content-addressed record ID (§3). **Members** of an epoch = the author plus every account addressed by an accepted `epoch-key` record for it.
+
+### 5.3 `epoch-key` record (key distribution)
+
+One per recipient account (the author includes their **own** account so their other devices can read their posts), wrapping `K_e` to every certified, unrevoked device of `to` — same hybrid mechanism as §4 step 3, with two differences: the HKDF info string is `"runa/v1/epoch-wrap:" + <epoch id>` (domain separation **and** cryptographic binding — a wrap replayed under a different epoch fails to unwrap), and the wrapped plaintext is the 32-byte `K_e` itself.
+
+```jsonc
+{
+  "v": 1, "type": "epoch-key", "alg": "x25519-hkdf-sha256+xchacha20poly1305",
+  "author": "...", "device": "...", "created_at": "...",
+  "epoch": "<epoch record id>",
+  "to": "<recipient account id>",
+  "recipients": [ { "device": "<Di id>", "eph_pub": "...", "wrap_nonce": "...", "wrapped_key": "..." } ],
+  "sig": "..."
+}
+```
+
+**Late wraps (device re-enrollment — design §18.1's availability model):** a member account that enrolls a new device has lost nothing structurally; any *holder* of `K_e` MAY issue an additional `epoch-key` record covering the new device. Server acceptance rule: the record's `author` must be the epoch's author, **or** be an existing member with `to` also an existing member (members may re-wrap to each other's new devices but cannot extend membership — only the epoch author admits new accounts; the group roster layer will widen this).
+
+### 5.4 `scoped-post` record
+
+```jsonc
+{
+  "v": 1, "type": "scoped-post", "alg": "x25519-hkdf-sha256+xchacha20poly1305",
+  "author": "...", "device": "...", "created_at": "...",
+  "epoch": "<epoch record id>",
+  "nonce": "<b64url 24 bytes>",
+  "ciphertext": "<b64url>",
+  "sig": "..."
+}
+```
+
+`ciphertext = XChaCha20-Poly1305(key=K_e, nonce, plaintext=P, aad=canonical header)` where the header is the record minus `ciphertext` and `sig` (JCS bytes, as §4) — the AAD binds author/epoch/timestamp, so ciphertext cannot be transplanted onto another author or epoch. Plaintext `P` is `{"body": "<UTF-8 text>"}`; future fields arrive via `v`. Verify-then-decrypt-render as with §4: signature + cert chain REQUIRED before decryption, decryption failures render as hard errors, never content. In v1 only the epoch's author may post into an epoch (server-enforced; the group layer widens this to members).
+
+### 5.5 Rotation & snapshot rules (normative, client-driven)
+
+The server never touches keys, so rotation is lazy and happens at the author's client (design §18.1):
+
+- Before sealing a scoped post, the client recomputes the scope's concrete set. If it differs from the epoch's member set **or** the epoch is older than `epoch_max_age_days`, the client MUST create a new epoch (`prev` = the old one) and distribute `K_e'` before posting into it.
+- Removal (unfollow, mute, or falling below threshold) → the removed account receives no keys for subsequent epochs and cannot read new posts; nothing revokes what they could already decrypt (§7.2 — stated, not hidden).
+- Additions read from the first epoch that includes them; no history unlock.
+
+### 5.6 Interaction with trust, feed, and budgets
+
+Scoped posts change **audience**, not trust or reach: they surface in a viewer's feed only if the viewer's own trust in the author clears `feed_surface_threshold`, exactly as tier-1 — key possession is necessary but never sufficient for feed placement. Posting to your own (scoped) audience is unmetered (design §5.1); an `epoch-key` record is a key grant, not a notification, and generates no user-facing event for the recipient. Epoch membership is never user-visible beyond what key possession implies (design §8); the server necessarily sees the fan-out (threat model: metadata conceded).
+
+**Reserved (design §18):** group record types (`group`, `group-admin-cert`, `group-member-add`/`-remove`, `group-invite`, group posts) remain reserved alongside the other later-milestone types in §3.1: extend this spec with vectors before implementing.
 
 ## 6. Server API (v1, PoC surface)
 
@@ -113,6 +184,9 @@ Auth: signup is open (`POST /accounts` with root pubkey + first device cert). Se
 - `dm` records (the §4 envelope) also flow through `POST /records`: the server verifies signature + cert chain on the *envelope*, treats `ciphertext`/`recipients` as opaque, and requires `to` to be a valid account id. Reads (auth): `GET /dm/with/{id}` → `{"records": [<dm records where (author=viewer ∧ to=id) ∨ (author=id ∧ to=viewer)>], "next_before"}` chronological (oldest→newest within the page), `limit`/`before` as for records. `GET /dm/inbox` → `{"conversations": [{"with": "<account id>", "last": <dm record>, "request": <bool>}]}` sorted by last activity; `request` is true iff the *viewer* has no trust path to the counterparty **and** the viewer has never sent into the conversation (the Phase-3 tray is classification only; token spend arrives with M4).
 - **Cold-outreach budgets (M4, trust-and-reach §3):** the server meters *initiations* on ingest. An initiation is cold iff the recipient's effective trust in the sender is below `feed_surface_threshold` from the **recipient's** vantage (shared `cold-01` vectors) **and** no reciprocal window is open (the recipient has previously sent the sender a DM). Metered in the PoC: a cold `dm` (recipient = `to`) and a cold `follow` (recipient = `subject`). Each costs one token from the sender's bucket: `daily_budget = (base + k×log(1+Σ inbound_trust)) × standing` (base = 5 open-signup; standing = 1.0 pre-M7; Σ inbound_trust = standing-weighted follower count), refilled lazily per elapsed day, carryover capped at `budget_carryover_days × daily_budget`. An exhausted bucket → `429 {"error":{"code":"budget_exhausted",...}}` — the message names the published constants. **Never metered:** posts to your own feed, warm-path anything, replies within an open reciprocal window. (Mentions and reply-notifications are metered post-PoC when notifications exist; the reply record itself is never blocked — throttle, don't silence.)
 - `GET /budget` (auth) → `{"daily_budget": <float>, "tokens": <float>, "base": <int>, "inbound_trust": <float>, "carryover_cap": <float>}` — the sender-side meter; floats only in responses, never in signed records.
+- **Tier-3 (M5, §5):** `epoch`, `epoch-key`, and `scoped-post` records flow through `POST /records`. Ingest rules beyond signature/cert-chain: `epoch.scope.source` must be a known non-reserved value (`400 invalid_record`); `epoch-key.epoch` / `scoped-post.epoch` must reference an ingested `epoch` record (`400 unknown_epoch`); `epoch-key.to` must be a valid account (`400 unknown_account`); `alg` is pinned as in §4 (`400 unsupported_alg`, same code as the tier-2 path). Authorization: a `scoped-post` author must be the epoch's author (`403 not_epoch_author`); an `epoch-key` author must be the epoch's author, or an existing member whose `to` is also already a member (`403 not_epoch_member`) — §5.3. The server treats `recipients`/`ciphertext` as opaque and never holds a decryption key.
+- `GET /epochs/keys?limit&before` (auth) → `{"keys": [<epoch-key records where to=viewer>], "epochs": {"<epoch id>": <epoch record>}, "next_before"}` — reverse-chronological, paginated as §6 records; `epochs` inlines each referenced epoch record so the client learns scope/`prev`/author without extra round-trips.
+- Scoped-post delivery: member-only everywhere. `GET /feed` includes scoped posts from epochs the viewer is a member of, ranked by the same candidate math (the client decrypts after its own verification/re-ranking, §5.6); `GET /accounts/{id}/records?type=scoped-post` returns the author's scoped posts **only** to members of the respective epochs — for non-members the records are silently omitted (existence hidden, design §8), and `epoch`/`epoch-key`/`scoped-post` never appear in the public record listing.
 - `POST /backup` (auth) body `{"blob": <passphrase-backup object, §7>}` → `204`; one blob per account, overwrite allowed. `GET /backup/{account}` → `{"blob"}` or `404`. **PoC caveat:** backup fetch is deliberately unauthenticated — the recovering user has no device to sign with; the blob is Argon2id-encrypted client-side, and account IDs are public. This widens the brute-force exposure from "the operator" to "anyone" and is flagged in the threat model; revisit before production (e.g., rate limits, proof-of-possession of the word list).
 
 | Endpoint | Purpose |
@@ -140,4 +214,4 @@ Presented once at signup (export-at-birth), re-exportable anytime:
 
 ## 8. Test vectors
 
-`docs/protocol/vectors/*.json` (created per milestone): JCS canonicalization cases, signed records (valid + tampered), a full tier-2 envelope with all private keys given, recovery-kit seed↔words. Both the Go and TypeScript test suites consume the same files. A vector-less format change is an unreviewable format change — reject in review.
+`docs/protocol/vectors/*.json` (created per milestone): JCS canonicalization cases, signed records (valid + tampered), a full tier-2 envelope with all private keys given, recovery-kit seed↔words, tier-3 epoch/epoch-key/scoped-post with all private keys given (`epoch-v1-01` — including a cross-epoch wrap-replay failure case and an AAD-transplant failure case) and scope enumeration over a graph fixture (`scope-01`). Both the Go and TypeScript test suites consume the same files. A vector-less format change is an unreviewable format change — reject in review.

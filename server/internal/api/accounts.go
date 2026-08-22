@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"slices"
-	"strconv"
 	"time"
 
 	"github.com/VenatioDecorus/runa/server/internal/record"
@@ -15,7 +14,8 @@ import (
 const maxBodyBytes = 1 << 20
 
 // Accepted record types (docs/protocol.md §6): Phase 1 identity/content,
-// the Phase 2 graph types, and the Phase 3 dm envelope.
+// the Phase 2 graph types, the Phase 3 dm envelope, and the Phase 5 tier-3
+// types.
 var acceptedTypes = map[string]bool{
 	"post":          true,
 	"profile":       true,
@@ -26,6 +26,17 @@ var acceptedTypes = map[string]bool{
 	"mute":          true,
 	"unmute":        true,
 	"dm":            true,
+	"epoch":         true,
+	"epoch-key":     true,
+	"scoped-post":   true,
+}
+
+// tier3Types are the scoped-post machinery of docs/protocol.md §5: extra
+// ingest rules on submit, member-only visibility on read.
+var tier3Types = map[string]bool{
+	"epoch":       true,
+	"epoch-key":   true,
+	"scoped-post": true,
 }
 
 // graphTypes carry a `subject` account id and materialize edges on ingest.
@@ -220,6 +231,9 @@ func (s *server) handleIngestRecord(w http.ResponseWriter, r *http.Request) {
 	if typ == "dm" && !s.validateDMIngest(w, rec) {
 		return
 	}
+	if tier3Types[typ] && !s.validateTier3Ingest(w, rec) {
+		return
+	}
 	// All verification has passed; meter cold initiations (M4) before any
 	// storage — a 429 means the record is not stored at all.
 	if !s.meterColdInitiation(w, rec, typ) {
@@ -248,6 +262,8 @@ func (s *server) handleIngestRecord(w http.ResponseWriter, r *http.Request) {
 	case "dm":
 		to, _ := rec.String("to")
 		err = s.st.InsertDM(row.ID, rec.Author(), to, rec.CreatedAt())
+	case "epoch", "epoch-key", "scoped-post":
+		err = s.applyTier3Record(typ, rec, row.ID)
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())
@@ -268,32 +284,46 @@ func (s *server) handleListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	limit := 50
-	if v := q.Get("limit"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 1 {
-			writeError(w, http.StatusBadRequest, "invalid_request", "limit must be a positive integer")
-			return
-		}
-		limit = min(n, 200)
+	limit, ok := pageLimit(w, r)
+	if !ok {
+		return
 	}
 	// Only publicly-visible types are served here: follows go through the
-	// follower-visible /accounts/{id}/follows, mutes only to their author.
-	types := publicListTypes
-	if typ := q.Get("type"); typ != "" {
-		if !slices.Contains(publicListTypes, typ) {
-			writeJSON(w, http.StatusOK, map[string]any{
-				"records":     []json.RawMessage{},
-				"next_before": nil,
-			})
+	// follower-visible /accounts/{id}/follows, mutes only to their author,
+	// and tier-3 records only to epoch members (scoped-post, below).
+	typ := q.Get("type")
+	var rows []store.RecordRow
+	switch {
+	case typ == "scoped-post":
+		// Member-only, by silent omission: a non-member — or an
+		// unauthenticated caller — simply sees none of them, so the existence
+		// of the epoch stays hidden (docs/protocol.md §6, design §8).
+		viewer, err := s.optionalAuthAccount(r)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal", err.Error())
 			return
 		}
-		types = []string{typ}
-	}
-	rows, err := s.st.ListRecords(id, types, limit, q.Get("before"))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", err.Error())
+		rows, err = s.st.MemberScopedPosts(id, viewer, limit, q.Get("before"))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal", err.Error())
+			return
+		}
+	case typ != "" && !slices.Contains(publicListTypes, typ):
+		writeJSON(w, http.StatusOK, map[string]any{
+			"records":     []json.RawMessage{},
+			"next_before": nil,
+		})
 		return
+	default:
+		types := publicListTypes
+		if typ != "" {
+			types = []string{typ}
+		}
+		rows, err = s.st.ListRecords(id, types, limit, q.Get("before"))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal", err.Error())
+			return
+		}
 	}
 	records := make([]json.RawMessage, len(rows))
 	for i, row := range rows {

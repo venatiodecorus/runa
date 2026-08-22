@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"sort"
-	"strconv"
 
 	"github.com/VenatioDecorus/runa/server/internal/record"
 	"github.com/VenatioDecorus/runa/server/internal/store"
@@ -188,14 +187,9 @@ func (s *server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	if viewer == "" {
 		return
 	}
-	limit := 50
-	if v := r.URL.Query().Get("limit"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 1 {
-			writeError(w, http.StatusBadRequest, "invalid_request", "limit must be a positive integer")
-			return
-		}
-		limit = min(n, 200)
+	limit, ok := pageLimit(w, r)
+	if !ok {
+		return
 	}
 	gv, err := s.graphView(viewer)
 	if err != nil {
@@ -215,6 +209,16 @@ func (s *server) handleFeed(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "internal", err.Error())
 			return
 		}
+		// Tier-3 (§5.6): scoped posts change audience, not trust. They join
+		// the same candidate pool under the same ranking, but only from
+		// epochs the viewer is a member of — key possession is necessary and
+		// never sufficient for feed placement.
+		scoped, err := s.st.MemberScopedPosts(author, viewer, limit, "")
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal", err.Error())
+			return
+		}
+		rows = append(rows, scoped...)
 		for _, row := range rows {
 			items = append(items, feedItem{
 				Record:         json.RawMessage(row.Body),

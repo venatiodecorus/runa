@@ -1,6 +1,6 @@
 # Proof-of-Concept Plan
 
-**Status:** PoC complete (2026-08-21) — Phases 0–4 + S all checked, including the M4 stretch and the §17 imageboard addition; every phase's exit criteria verified by scripted client-vs-server runs. Next up: the post-PoC roadmap (design §12 M5–M9: tier-3 epoch posts, attestation, standing/reports, invites/explore, transparency infrastructure) plus the §13 watch-items (real-browser latency at realistic graph sizes before settling §3.3). This file remains the shared work ledger.
+**Status:** Phases 0–5 + S complete. **Phase 5 (M5, tier-3 scoped posts) landed 2026-08-22** — protocol §5 normative, both implementations vector-tested, exit criteria verified by a scripted client-vs-runad run (19/19). Next up: M6 (attestation) per design §12; remaining roadmap M7–M9 (standing/reports, invites/explore, transparency infrastructure) plus the §13 watch-items (real-browser latency at realistic graph sizes before settling §3.3). Groups (design §18) are unblocked now that the epoch recipient set is an abstract source. This file remains the shared work ledger.
 
 ## PoC scope & thesis
 
@@ -117,6 +117,26 @@ Repeatable manual-testing fixtures without hand-driving browser sessions. The se
 - [x] `make seed` (needs the dev server running; `SEED_API_BASE` overridable) and `make reset` (delete the SQLite files; stop server first, restart after). Fresh-DB only — reruns exit 1 with the reset recipe on the first `account_exists` 409.
 
 ---
+
+## Phase 5 — Tier-3 scoped posts (M5)
+
+Goal: "My follows" / "My web" scoped posts via epoch keys (protocol §5, now normative); snapshot semantics; lazy client-driven rotation; server dump shows ciphertext only. The epoch recipient set is an abstract source (graph scope now, group roster later — design §18 constraint honored in the wire format).
+
+**Protocol/core (vectors first):**
+- [x] `packages/core`: epoch seal/open (`epoch`, `epoch-key`, `scoped-post` records; wrap info `"runa/v1/epoch-wrap:"+epoch_id`; AAD = header minus `ciphertext`/`sig`); scope enumeration (`follows` = hop-1 set minus mutes — design §7.1: mute is a membership-removal event; `web` = trustMap ≥ threshold) over the existing GraphView; rotation predicate (member-set diff ∨ age > `epoch_max_age_days`), `nowIso` injected.
+- [x] Vectors: `epoch-v1-01` (full private keys; valid epoch + key + post; tamper cases: ciphertext flip, cross-epoch wrap replay, transplanted AAD, bad sig) and `scope-01` (graph fixture → concrete member sets for both scopes, incl. muted-but-followed exclusion); consumed by TS tests (Go consumes `epoch-v1-01` for structural/signature verification — no decryption server-side).
+
+**Server:**
+- [x] Ingest `epoch` / `epoch-key` / `scoped-post` via `POST /records`: reserved-scope rejection, `unknown_epoch`, pinned alg (`unsupported_alg`, same code as tier-2), `not_epoch_author` / `not_epoch_member` authorization (protocol §6); epoch/member materialization tables (migration 0006).
+- [x] `GET /epochs/keys` (viewer's key grants + inlined epoch records, paginated); member-only scoped-post delivery in `/feed` and `/accounts/{id}/records` (silent omission for non-members — unauthenticated listing returns empty, never a revealing 401/403; tier-3 types excluded from public listings).
+- [x] Integration tests: membership enforcement, non-member silent omission, late-wrap acceptance rules, snapshot-across-epochs, key-possession-without-trust gets no feed placement (§5.6), ciphertext-only-in-DB grep check (WAL checkpointed first).
+
+**Client:**
+- [x] Compose: audience selector (Public / My follows / My web); epoch manager in `web/src/crypto/epochs.ts` — create/rotate per §5.5 (recompute set before every scoped post), key storage over the existing kv store (disposable like device keys — recovery restores identity, not history); drafts preserved on failure.
+- [x] Feed + own timeline: fetch `/epochs/keys` (grants signature-verified, inlined epoch records content-address-checked), verify-then-decrypt-render scoped posts (hard-fail placeholders; "no key for this epoch" is a distinguished benign state); scope badge on scoped posts.
+- [x] Re-enrollment late-wrap: author's client re-wraps the current epoch key to newly-certified own devices (§5.3, delta only — already-covered devices are not re-wrapped).
+
+**Exit:** two browser profiles: A posts to "My follows"; follower B sees and decrypts it in their feed with a scope badge; stranger C never receives the record (API-level check); B unfollowed → next post in a fresh epoch, B's client shows nothing new; server SQLite dump greps clean of plaintext; A re-enrolls a device and can still read their own scoped history going forward. **Verified 2026-08-22** via scripted client-vs-runad run (web client's own modules, fresh DB): 19/19 assertions — member decrypt, stranger silent omission, rotation with `prev` linkage on unfollow, snapshot semantics (B still reads pre-removal history), late-wrap to a re-enrolled device, DB grep finds ciphertext records but zero plaintext. The run surfaced and fixed one client bug: `listRecords()` wasn't attaching the bearer token, so the member-gated `type=scoped-post` listing silently omitted even the owner's own scoped history.
 
 ## Working agreements for implementing agents
 
