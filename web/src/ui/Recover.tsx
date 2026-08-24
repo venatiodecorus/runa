@@ -5,9 +5,10 @@
  */
 import { useState } from "react";
 import { decryptBackup, mnemonicToSeed, parseKeyFile } from "../crypto/recoverykit.js";
+import { looksLikeDeviceSnapshot, parseDeviceSnapshot } from "../crypto/devicesnapshot.js";
 import { rootFromSeed, type RootKey } from "../crypto/keys.js";
 import { getBackup } from "../api/client.js";
-import { enrollDevice, defaultDeviceName, type Session } from "./session.js";
+import { enrollDevice, importDeviceSnapshot, defaultDeviceName, type Session } from "./session.js";
 import { styles } from "./theme.js";
 
 type Method = "words" | "file" | "passphrase";
@@ -30,6 +31,14 @@ export function Recover({ onDone }: { onDone: (session: Session) => void }) {
         root = rootFromSeed(mnemonicToSeed(words));
       } else if (method === "file") {
         if (fileJson === null) throw new Error("choose a key file first");
+        // Dev/test device snapshot (seed script output): adopt the original
+        // device — its old ciphertext stays readable — instead of enrolling
+        // a new one.
+        if (looksLikeDeviceSnapshot(fileJson)) {
+          setBusy("Importing device snapshot…");
+          onDone(await importDeviceSnapshot(parseDeviceSnapshot(fileJson)));
+          return;
+        }
         root = parseKeyFile(fileJson);
       } else {
         setBusy("Fetching backup…");
