@@ -8,6 +8,7 @@
  * only — never in IndexedDB or localStorage.
  */
 import type {
+  AttestationRecord,
   DeviceCert,
   DeviceRevoke,
   DmRecord,
@@ -350,6 +351,31 @@ export function getEpochsKeys(
   if (opts.before !== undefined) params.set("before", opts.before);
   const qs = params.toString();
   return request(`/epochs/keys${qs ? `?${qs}` : ""}`, { auth: true });
+}
+
+// --- attestation & verification (protocol §8, M6) ---------------------------
+
+export interface AttestationsResponse {
+  /** Server-side active attestations of the subject — a candidate set, never
+   *  an authority (protocol §8.3): clients re-verify every record. */
+  attestations: AttestationRecord[];
+  authors: Record<string, FeedAuthor>;
+  next_before: string | null;
+}
+
+/**
+ * GET /accounts/{id}/attestations — unauthenticated (attestations are public
+ * by design, protocol §8.1). Reverse-chronological, paginated as §6 records.
+ */
+export function getAttestations(
+  id: string,
+  opts: { limit?: number; before?: string } = {},
+): Promise<AttestationsResponse> {
+  const params = new URLSearchParams();
+  if (opts.limit !== undefined) params.set("limit", String(opts.limit));
+  if (opts.before !== undefined) params.set("before", opts.before);
+  const qs = params.toString();
+  return request(`/accounts/${encodeURIComponent(id)}/attestations${qs ? `?${qs}` : ""}`);
 }
 
 // --- passphrase backup ------------------------------------------------------

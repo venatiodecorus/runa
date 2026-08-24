@@ -1,6 +1,6 @@
 # Protocol Specification
 
-**Status:** v0.2 (normative for M1–M5; §§ marked *outline* are direction, not yet normative).
+**Status:** v0.3 (normative for M1–M6; §§ marked *outline* are direction, not yet normative).
 **Bar (design §9):** a third party can build an independent client from this document. Until test vectors exist, that bar is unmet — writing vectors is part of each implementing milestone.
 **Versioning rule:** every record and envelope carries `v` (integer) and, for envelopes, `alg`. Implementations MUST reject unknown `v`/`alg` rather than guess. Changes to this file follow the same review process as code.
 
@@ -60,7 +60,9 @@ All server-stored user data is a **record**: a JSON object signed by a device ke
 | `epoch` | device | members + author only (§5) | `scope`, `prev` (optional) |
 | `epoch-key` | device | recipient (`to`) only | `epoch`, `to`, `alg`, `recipients` — §5.3 |
 | `scoped-post` | device | members + author only; ciphertext | `epoch`, `alg`, `nonce`, `ciphertext` — §5.4 |
-| `attestation` | device | public *(outline — M6)* | `subject`, `subject_root_pub`, `method` |
+| `attestation` | device | public (§8) | `subject`, `subject_root_pub`, `method` |
+| `attestation-revoke` | device | public (§8) | `subject` |
+| `domain-claim` | device | public (§8.4) | `domain` |
 
 Later-milestone types (`report`, `invite`, group records) are reserved; do not improvise formats — extend this spec first.
 
@@ -188,6 +190,7 @@ Auth: signup is open (`POST /accounts` with root pubkey + first device cert). Se
 - **Tier-3 (M5, §5):** `epoch`, `epoch-key`, and `scoped-post` records flow through `POST /records`. Ingest rules beyond signature/cert-chain: `epoch.scope.source` must be a known non-reserved value (`400 invalid_record`); `epoch-key.epoch` / `scoped-post.epoch` must reference an ingested `epoch` record (`400 unknown_epoch`); `epoch-key.to` must be a valid account (`400 unknown_account`); `alg` is pinned as in §4 (`400 unsupported_alg`, same code as the tier-2 path). Authorization: a `scoped-post` author must be the epoch's author (`403 not_epoch_author`); an `epoch-key` author must be the epoch's author, or an existing member whose `to` is also already a member (`403 not_epoch_member`) — §5.3. The server treats `recipients`/`ciphertext` as opaque and never holds a decryption key.
 - `GET /epochs/keys?limit&before` (auth) → `{"keys": [<epoch-key records where to=viewer>], "epochs": {"<epoch id>": <epoch record>}, "next_before"}` — reverse-chronological, paginated as §6 records; `epochs` inlines each referenced epoch record so the client learns scope/`prev`/author without extra round-trips.
 - Scoped-post delivery: member-only everywhere. `GET /feed` includes scoped posts from epochs the viewer is a member of, ranked by the same candidate math (the client decrypts after its own verification/re-ranking, §5.6); `GET /accounts/{id}/records?type=scoped-post` returns the author's scoped posts **only** to members of the respective epochs — for non-members the records are silently omitted (existence hidden, design §8), and `epoch`/`epoch-key`/`scoped-post` never appear in the public record listing.
+- **Attestation (M6, §8):** `attestation`, `attestation-revoke`, and `domain-claim` records flow through `POST /records`. Ingest rules beyond signature/cert-chain: `attestation.subject` / `attestation-revoke.subject` must be an account known to this instance (`400 unknown_account`); `attestation.subject_root_pub` must equal `subject` (`400 invalid_record`); `attestation.method` must be a known value (`400 invalid_record`); self-attestation `author == subject` → `400 invalid_record`; `domain-claim.domain` must be a plausible lowercase hostname (`400 invalid_record`). None of these types is ever metered (§8.1). Reads: `GET /accounts/{id}/attestations?limit&before` (unauthenticated — attestations are public by design) → `{"attestations": [<active attestation records where subject={id}>], "authors": {"<attester id>": {"device_certs", "device_revocations", "profile"}}, "next_before"}` reverse-chronological; *active* = not superseded by a later `attestation-revoke` from the same author (materialized latest-wins, as follows). The `authors` bundle is the usual convenience-not-authority: clients verify each attestation's signature + cert chain and apply their own trust filter before displaying anything (§8.3). `domain-claim` records appear in the author's public record listing (`GET /accounts/{id}/records?type=domain-claim`) and the latest per (author, domain) is what clients check per §8.4.
 - `POST /backup` (auth) body `{"blob": <passphrase-backup object, §7>}` → `204`; one blob per account, overwrite allowed. `GET /backup/{account}` → `{"blob"}` or `404`. **PoC caveat:** backup fetch is deliberately unauthenticated — the recovering user has no device to sign with; the blob is Argon2id-encrypted client-side, and account IDs are public. This widens the brute-force exposure from "the operator" to "anyone" and is flagged in the threat model; revisit before production (e.g., rate limits, proof-of-possession of the word list).
 
 | Endpoint | Purpose |
@@ -202,6 +205,7 @@ Auth: signup is open (`POST /accounts` with root pubkey + first device cert). Se
 | `GET /records/{id}` | one public-type record + its author's cert bundle/profile + `reply_count` (thread page root) |
 | `GET /records/{id}/replies` | every reply to a post, thread order, paginated forward with `after` |
 | `GET /graph/2hop` | the authenticated viewer's entitled slice: own follows' follow lists — the input to client-side trust computation |
+| `GET /accounts/{id}/attestations` | active attestations of `{id}` + attester cert bundles — public (§8) |
 | `GET /dm/inbox`, `GET /dm/with/{id}` | ciphertext mailbox |
 
 The graph-visibility rules of design §8 are enforced here and only here matter server-side: outbound follows are follower-visible (opt-up to public), inbound lists are count-only to others, mutes are never served to anyone but their author.
@@ -215,6 +219,59 @@ Presented once at signup (export-at-birth), re-exportable anytime:
 - **Passphrase backup (optional, design §2.4):** blob = XChaCha20-Poly1305 over the key-file JSON, key = Argon2id(passphrase, salt=random 16B, m=64 MiB, t=3, p=1); `{v, salt, params, nonce, ciphertext}` may be stored server-side (`POST /backup`). Server stores it blind. UI must state the brute-force-target caveat for high-value accounts.
 - Import of any of the three forms → root in memory → sign a fresh device cert → session live. Target: re-enrollment ≈ 30 seconds.
 
-## 8. Test vectors
+## 8. Attestation & verification (M6)
 
-`docs/protocol/vectors/*.json` (created per milestone): JCS canonicalization cases, signed records (valid + tampered), a full tier-2 envelope with all private keys given, recovery-kit seed↔words, tier-3 epoch/epoch-key/scoped-post with all private keys given (`epoch-v1-01` — including a cross-epoch wrap-replay failure case and an AAD-transplant failure case) and scope enumeration over a graph fixture (`scope-01`). Both the Go and TypeScript test suites consume the same files. A vector-less format change is an unreviewable format change — reject in review.
+Per design §7.3: follows are interest + trust delegation, **never** key attestation; attestation is a separate, explicit, deliberately-created edge — "I verified that this key belongs to the entity I believe operates it." Attestations are ordinary signed records, **public by design** (a verifiability claim is useless if hidden; attesting is a public act — threat model), and the server is a registry and router of them, never an oracle of identity: it can withhold attestations but cannot forge them. TOFU everywhere: attestation upgrades *displayed confidence* only and never gates any capability (architecture invariant 6).
+
+### 8.1 `attestation` / `attestation-revoke` records
+
+```jsonc
+{
+  "v": 1, "type": "attestation",
+  "author": "...", "device": "...", "created_at": "...",
+  "subject": "<account id>",           // the account whose key was verified
+  "subject_root_pub": "<b64url root pubkey>", // MUST equal `subject` (self-contained statement)
+  "method": "qr" | "safety-number" | "domain-proof",  // the out-of-band act performed
+  "sig": "..."
+}
+```
+
+- `subject_root_pub` MUST equal `subject` byte-for-byte (the account id *is* the base64url root pubkey; carrying the key explicitly keeps the statement meaningful outside any account-id encoding context). Mismatch → reject.
+- `method` names the deliberate out-of-band act (design §7.3): in-person QR fingerprint scan, safety-number comparison over an external channel (§8.2), or a domain proof checked by the attester's client (§8.4). Unknown values → reject.
+- Self-attestation (`author == subject`) is meaningless and rejected.
+- There is **no name/entity field**: the record binds attester → key. Who the attester believes the key belongs to lives in the attester's own social context; publishing a name binding would mint a pseudo-identity claim out of non-unique display names.
+- `attestation-revoke` (fields: `subject`) withdraws the author's attestation of `subject`. Per (author, subject) pair the record with the latest `created_at` wins, exactly as `follow`/`unfollow`.
+- Attestation records are **never metered** (trust-and-reach §3): they generate no user-facing event for the subject in v1. Revisit alongside mentions when notifications exist.
+
+### 8.2 Safety number (pairwise, deterministic)
+
+The safety number for accounts A and B (43-char account ids) is symmetric — both clients derive the same 60 digits and the humans compare them over a channel of their choosing:
+
+1. `pair = min(idA, idB) + ":" + max(idA, idB)` (byte-wise lexicographic order of the id strings).
+2. `bytes = SHA-256(utf8("runa/v1/safety-number:0:" + pair)) ∥ SHA-256(utf8("runa/v1/safety-number:1:" + pair))` — 64 bytes.
+3. For `k = 0..11`: `group_k = decimal(uint40_be(bytes[5k .. 5k+5])) mod 100000`, zero-padded to 5 digits.
+4. Safety number = the 12 groups; clients display them as `12345 67890 …` (60 digits total).
+
+The single-account **fingerprint** of §2 (SHA-256 of the root pubkey) remains the QR/display form for one identity; the safety number is the pairwise comparison form.
+
+### 8.3 Client behavior: confidence & key-change alarms (normative for conforming clients)
+
+- **Confidence display:** a client renders an account as *verified* iff the **viewer's own** active (unrevoked) attestation of it exists, and may additionally surface attestations by accounts the viewer trusts (client-verified signatures + cert chains, filtered by the viewer's own trust computation — the server's list is a candidate set, never an authority). Verification state never gates encryption, delivery, or feed placement.
+- **Key continuity (local pins):** clients SHOULD pin, per contact, the device-cert set last seen at attestation time or last tier-2 send. Before the next tier-2 send to a contact whose set has since gained devices, show a warning — louder if the viewer had attested the contact ("verified on <date>; a new device has appeared since"). The warning is click-through-able (re-pins) and never a wall (design §7.3). Root keys cannot change within an account (new root = new account, design §2); device additions are the observable event, and a root-key thief certifying a new device is exactly what the alarm surfaces.
+- **Strictness toggles** (design §7.3, default off): "require verified keys for tier-2 sends", "warn before including unverified new followers in epoch distribution". Opt-in per user; clients MAY defer implementing them but MUST NOT invert the defaults.
+
+### 8.4 Domain proofs (client-checked, Keybase model)
+
+A **`domain-claim`** record (public, fields: `domain` — a lowercase registrable hostname, no scheme/port/path) states "this account controls `domain`". The claim is proven by a file the account owner places at:
+
+```
+https://<domain>/.well-known/runa.json
+```
+
+whose body is JSON: `{"v": 1, "claims": [<domain-claim record>, ...]}` — the full signed `domain-claim` record(s), byte-identical in content to what was posted to the instance (same record id).
+
+**Verification is performed by each viewing client, never the server** (design §7.3 — the server never vouches): fetch the well-known URL over HTTPS, find a claim record whose `author` matches the profile being viewed and whose `domain` matches the host it was fetched from, verify signature + cert chain locally, and only then render the domain as verified. Failures (unreachable, mismatch, bad signature) render as unverified — never as an error attributed to the subject. **CORS caveat:** browser clients can only check domains that serve the file with `Access-Control-Allow-Origin: *`; the well-known contract includes serving that header. A verified domain proof is grounds for publishing an `attestation` with `method: "domain-proof"`.
+
+## 9. Test vectors
+
+`docs/protocol/vectors/*.json` (created per milestone): JCS canonicalization cases, signed records (valid + tampered), a full tier-2 envelope with all private keys given, recovery-kit seed↔words, tier-3 epoch/epoch-key/scoped-post with all private keys given (`epoch-v1-01` — including a cross-epoch wrap-replay failure case and an AAD-transplant failure case), scope enumeration over a graph fixture (`scope-01`), attestation records (`attest-01` — valid attestation/revoke, `subject_root_pub` mismatch, unknown method, self-attestation, tampered sig) and safety-number derivation (`safety-number-01` — §8.2, including symmetry). Both the Go and TypeScript test suites consume the same files. A vector-less format change is an unreviewable format change — reject in review.

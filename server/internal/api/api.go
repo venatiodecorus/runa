@@ -54,6 +54,7 @@ func New(st *store.Store, cfg Config) http.Handler {
 	mux.HandleFunc("GET /api/v1/accounts/{id}", s.handleGetAccount)
 	mux.HandleFunc("GET /api/v1/accounts/{id}/records", s.handleListRecords)
 	mux.HandleFunc("GET /api/v1/accounts/{id}/follows", s.handleGetFollows)
+	mux.HandleFunc("GET /api/v1/accounts/{id}/attestations", s.handleGetAttestations)
 	mux.HandleFunc("GET /api/v1/graph/2hop", s.handleGraph2hop)
 	mux.HandleFunc("GET /api/v1/feed", s.handleFeed)
 	mux.HandleFunc("GET /api/v1/budget", s.handleGetBudget)

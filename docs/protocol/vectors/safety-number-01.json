@@ -1,0 +1,33 @@
+{
+  "description": "Pairwise safety numbers (protocol §8.2): 12 zero-padded 5-digit groups joined by single spaces, symmetric in the pair. `fingerprints` are SHA-256 of the decoded root pubkey (§2), lowercase hex.",
+  "cases": [
+    {
+      "name": "attester/subject pair",
+      "id_a": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+      "id_b": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+      "safety_number": "34426 52489 49742 05742 58689 78860 06334 79258 05447 55585 04077 58764"
+    },
+    {
+      "name": "symmetry (arguments swapped)",
+      "id_a": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+      "id_b": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+      "safety_number": "34426 52489 49742 05742 58689 78860 06334 79258 05447 55585 04077 58764"
+    },
+    {
+      "name": "self pair (degenerate, defined)",
+      "id_a": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+      "id_b": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+      "safety_number": "17914 63923 94732 63359 28421 81414 04535 99747 03383 30858 06032 77548"
+    }
+  ],
+  "fingerprints": [
+    {
+      "account_id": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+      "sha256_hex": "10ba682c8ad13513971e8b56881aab8bd702bb807796eca81932c735a94d6e6d"
+    },
+    {
+      "account_id": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+      "sha256_hex": "b14705888f4a68391a09aa5968dd25d16c3bba7bb3b6d15bf354d8dcaae85a47"
+    }
+  ]
+}

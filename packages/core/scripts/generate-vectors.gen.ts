@@ -4,7 +4,7 @@
  *
  * Vectors are generated from one implementation and verified by both (the Go
  * suite consumes the same files), plus reviewed by hand — a format change
- * without a vector change is rejected in review (protocol §8).
+ * without a vector change is rejected in review (protocol §9).
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -19,6 +19,17 @@ import { signRecord, signingBytes } from "../src/records.js";
 import { subjectiveTrust } from "../src/trust.js";
 import { dailyBudget, isColdInitiation } from "../src/budgets.js";
 import { sealDm, openDm } from "../src/envelope.js";
+import {
+  verifyAttestation,
+  verifyAttestationRevoke,
+  verifyDomainClaim,
+  activeAttestations,
+  safetyNumber,
+  fingerprint,
+  type AttestationRecord,
+  type AttestationRevokeRecord,
+  type DomainClaimRecord,
+} from "../src/attestation.js";
 import {
   makeEpoch,
   sealEpochKey,
@@ -431,6 +442,127 @@ it("regenerates protocol vectors", () => {
       "< feed_surface_threshold, computed from the RECIPIENT's vantage. Reference constants.",
     cases: coldCases,
   });
+
+  // --- attest-01: attestation records (protocol §8.1, §8.4) ---------------
+  {
+    const attesterRootPriv = hexToBytes(ROOT_SEED);
+    const attesterDevicePriv = hexToBytes(DEVICE_SEED);
+    const attesterRoot = b64url.encode(ed25519.getPublicKey(attesterRootPriv));
+    const attesterDevice = b64url.encode(ed25519.getPublicKey(attesterDevicePriv));
+    const subjectSeed = "44".repeat(32);
+    const subjectRoot = b64url.encode(ed25519.getPublicKey(hexToBytes(subjectSeed)));
+
+    const attesterCert = signRecord(
+      {
+        v: 1, type: "device-cert", author: attesterRoot, created_at: T0,
+        device_sign_pub: attesterDevice,
+        device_kex_pub: b64url.encode(x25519.getPublicKey(hexToBytes(KEX_SEED))),
+      },
+      attesterRootPriv,
+    );
+    const attestation = signRecord(
+      {
+        v: 1, type: "attestation", author: attesterRoot, device: attesterDevice,
+        created_at: "2026-08-24T12:00:00Z",
+        subject: subjectRoot, subject_root_pub: subjectRoot, method: "safety-number",
+      },
+      attesterDevicePriv,
+    ) as AttestationRecord;
+    const revoke = signRecord(
+      {
+        v: 1, type: "attestation-revoke", author: attesterRoot, device: attesterDevice,
+        created_at: "2026-08-25T12:00:00Z", subject: subjectRoot,
+      },
+      attesterDevicePriv,
+    ) as AttestationRevokeRecord;
+    const domainClaim = signRecord(
+      {
+        v: 1, type: "domain-claim", author: attesterRoot, device: attesterDevice,
+        created_at: "2026-08-24T12:00:00Z", domain: "example.com",
+      },
+      attesterDevicePriv,
+    ) as DomainClaimRecord;
+    const selfAttestation = signRecord(
+      {
+        v: 1, type: "attestation", author: attesterRoot, device: attesterDevice,
+        created_at: "2026-08-24T12:00:00Z",
+        subject: attesterRoot, subject_root_pub: attesterRoot, method: "qr",
+      },
+      attesterDevicePriv,
+    ) as AttestationRecord;
+
+    // Self-checks: reference impl agrees with the intended validity of each case.
+    verifyAttestation(attestation);
+    verifyAttestationRevoke(revoke);
+    verifyDomainClaim(domainClaim);
+    for (const [name, fn] of [
+      ["subject_root_pub mismatch", () => verifyAttestation({ ...attestation, subject_root_pub: attesterRoot })],
+      ["unknown method", () => verifyAttestation({ ...attestation, method: "vibes" as never })],
+      ["self-attestation", () => verifyAttestation(selfAttestation)],
+      ["tampered sig", () => verifyAttestation({ ...attestation, method: "qr" })],
+      ["bad domain", () => verifyDomainClaim({ ...domainClaim, domain: "https://example.com" })],
+    ] as const) {
+      let threw = false;
+      try { fn(); } catch { threw = true; }
+      if (!threw) throw new Error(`attest self-check failed: ${name} should be invalid`);
+    }
+    const active = activeAttestations(subjectRoot, [attestation], [revoke]);
+    if (active.length !== 0) throw new Error("attest self-check failed: revoke must supersede");
+    if (activeAttestations(subjectRoot, [attestation]).length !== 1) {
+      throw new Error("attest self-check failed: unrevoked attestation must be active");
+    }
+
+    write("attest-01.json", {
+      description:
+        "Attestation records (protocol §8.1, §8.4). Keys from the given hex seeds (test keys only); " +
+        "`certs` is context for chain verification. Verification cases expect `valid`; the `reduction` " +
+        "case feeds attestations+revokes through latest-wins active-state reduction (revoke with " +
+        "created_at >= attestation's supersedes it) and expects `active_authors`.",
+      seeds: { attester_root_ed25519: ROOT_SEED, attester_device_ed25519: DEVICE_SEED, subject_root_ed25519: subjectSeed },
+      keys: { attester_account_id: attesterRoot, attester_device_id: attesterDevice, subject_account_id: subjectRoot },
+      certs: [attesterCert],
+      cases: [
+        { name: "valid attestation (safety-number)", record: attestation, valid: true, check: "chain" },
+        { name: "valid attestation-revoke", record: revoke, valid: true, check: "chain" },
+        { name: "valid domain-claim", record: domainClaim, valid: true, check: "chain" },
+        { name: "subject_root_pub mismatch", record: { ...attestation, subject_root_pub: attesterRoot }, valid: false, check: "type", reason: "subject_root_pub must equal subject (§8.1)" },
+        { name: "unknown method", record: { ...attestation, method: "vibes" }, valid: false, check: "type", reason: "method must be qr | safety-number | domain-proof" },
+        { name: "self-attestation", record: selfAttestation, valid: false, check: "type", reason: "author == subject is rejected (§8.1)" },
+        { name: "tampered method (sig fails)", record: { ...attestation, method: "qr" }, valid: false, check: "signature", reason: "signature must fail after tamper" },
+        { name: "bad domain (scheme included)", record: { ...domainClaim, domain: "https://example.com" }, valid: false, check: "type", reason: "domain is a bare lowercase hostname (§8.4)" },
+      ],
+      reduction: {
+        subject: subjectRoot,
+        attestations: [attestation],
+        revokes: [revoke],
+        active_authors: [],
+        without_revokes_active_authors: [attesterRoot],
+      },
+    });
+
+    // --- safety-number-01: pairwise safety numbers + fingerprints (§8.2) ---
+    const snAB = safetyNumber(attesterRoot, subjectRoot);
+    if (snAB !== safetyNumber(subjectRoot, attesterRoot)) {
+      throw new Error("safety-number self-check failed: not symmetric");
+    }
+    if (!/^\d{5}( \d{5}){11}$/.test(snAB)) {
+      throw new Error("safety-number self-check failed: format");
+    }
+    write("safety-number-01.json", {
+      description:
+        "Pairwise safety numbers (protocol §8.2): 12 zero-padded 5-digit groups joined by single spaces, " +
+        "symmetric in the pair. `fingerprints` are SHA-256 of the decoded root pubkey (§2), lowercase hex.",
+      cases: [
+        { name: "attester/subject pair", id_a: attesterRoot, id_b: subjectRoot, safety_number: snAB },
+        { name: "symmetry (arguments swapped)", id_a: subjectRoot, id_b: attesterRoot, safety_number: snAB },
+        { name: "self pair (degenerate, defined)", id_a: attesterRoot, id_b: attesterRoot, safety_number: safetyNumber(attesterRoot, attesterRoot) },
+      ],
+      fingerprints: [
+        { account_id: attesterRoot, sha256_hex: bytesToHex(fingerprint(attesterRoot)) },
+        { account_id: subjectRoot, sha256_hex: bytesToHex(fingerprint(subjectRoot)) },
+      ],
+    });
+  }
 
   // --- constants-01: cross-implementation constants agreement -------------
   write("constants-01.json", {

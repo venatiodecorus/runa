@@ -41,6 +41,20 @@ export {
   verifyAuthoredRecord,
 } from "./certs.js";
 export {
+  ATTESTATION_METHODS,
+  type AttestationMethod,
+  type AttestationRecord,
+  type AttestationRevokeRecord,
+  type DomainClaimRecord,
+  verifyAttestation,
+  verifyAttestationRevoke,
+  verifyDomainClaim,
+  activeAttestations,
+  fingerprint,
+  renderFingerprint,
+  safetyNumber,
+} from "./attestation.js";
+export {
   type ScopeSource,
   type EpochScope,
   type EpochRecord,

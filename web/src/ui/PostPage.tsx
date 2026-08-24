@@ -26,6 +26,8 @@ import { AccountLabel } from "./AccountLabel.js";
 import { ReplyComposer } from "./ReplyComposer.js";
 import { verifiedDisplayName } from "./authors.js";
 import { badgeStyle, styles } from "./theme.js";
+import { useAttestedCache, VerifiedBadge } from "./attested.js";
+import type { AttestedCache } from "../verify/attestations.js";
 import type { Session } from "./session.js";
 
 interface LoadedState {
@@ -99,6 +101,7 @@ export function PostPage({
   const [state, setState] = useState<LoadedState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showCollapsed, setShowCollapsed] = useState(false);
+  const { attested } = useAttestedCache();
 
   const load = useCallback(async (): Promise<LoadedState> => {
     const [recordRes, repliesRes, graph, meta] = await Promise.all([
@@ -229,6 +232,11 @@ export function PostPage({
               id={recordRes.record.author}
               name={rootName}
               onClick={() => onViewAccount(recordRes.record.author)}
+              suffix={
+                attested[recordRes.record.author] !== undefined ? (
+                  <VerifiedBadge since={attested[recordRes.record.author]} />
+                ) : undefined
+              }
             />
           </div>
           <div style={{ whiteSpace: "pre-wrap" }}>{String(recordRes.record.body ?? "")}</div>
@@ -273,6 +281,7 @@ export function PostPage({
           authorBundle={authors[r.item.author]}
           imageboard={imageboard}
           muted={false}
+          attested={attested}
           onOpenPost={onOpenPost}
           onViewAccount={onViewAccount}
         />
@@ -294,6 +303,7 @@ export function PostPage({
                 authorBundle={authors[r.item.author]}
                 imageboard={imageboard}
                 muted
+                attested={attested}
                 onOpenPost={onOpenPost}
                 onViewAccount={onViewAccount}
               />
@@ -316,6 +326,7 @@ function ReplyCard({
   authorBundle,
   imageboard,
   muted,
+  attested,
   onOpenPost,
   onViewAccount,
 }: {
@@ -324,6 +335,7 @@ function ReplyCard({
   authorBundle?: FeedAuthor;
   imageboard: boolean;
   muted: boolean;
+  attested: AttestedCache;
   onOpenPost: (id: string) => void;
   onViewAccount: (id: string) => void;
 }) {
@@ -341,7 +353,12 @@ function ReplyCard({
   return (
     <div style={cardStyle}>
       <div style={{ marginBottom: "0.35rem" }}>
-        <AccountLabel id={author} name={name} onClick={() => onViewAccount(author)} />
+        <AccountLabel
+          id={author}
+          name={name}
+          onClick={() => onViewAccount(author)}
+          suffix={attested[author] !== undefined ? <VerifiedBadge since={attested[author]} /> : undefined}
+        />
       </div>
       <div style={{ whiteSpace: "pre-wrap" }}>{String(record.body ?? "")}</div>
       <div style={{ ...styles.muted, marginTop: "0.4rem" }}>

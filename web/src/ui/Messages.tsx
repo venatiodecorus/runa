@@ -34,6 +34,13 @@ import {
 } from "../dm/budget.js";
 import { openDmRecord, sendDm, type AuthorKeys } from "../dm/dm.js";
 import {
+  currentDeviceIds,
+  diffPin,
+  loadPin,
+  repinFromCerts,
+  type PinDiff,
+} from "../dm/pins.js";
+import {
   dismissRequest,
   loadDismissed,
   partitionRequests,
@@ -48,7 +55,9 @@ import {
 import { AccountLabel } from "./AccountLabel.js";
 import { Identicon } from "./Identicon.js";
 import { verifiedDisplayName } from "./authors.js";
+import { useAttestedCache, VerifiedBadge } from "./attested.js";
 import { shortId, styles } from "./theme.js";
+import type { AttestedCache } from "../verify/attestations.js";
 import type { Session } from "./session.js";
 
 const POLL_MS = 10_000;
@@ -294,6 +303,7 @@ export function Messages({ session, imageboard }: { session: Session; imageboard
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
   const [showDismissed, setShowDismissed] = useState(false);
   const { names, ensureNames } = useVerifiedNames(imageboard);
+  const { attested } = useAttestedCache();
 
   const loadInbox = useCallback(async () => {
     const res = await getDmInbox();
@@ -321,6 +331,7 @@ export function Messages({ session, imageboard }: { session: Session; imageboard
         withId={openWith.id}
         name={names[openWith.id] ?? null}
         ensureNames={ensureNames}
+        attested={attested}
         focusCompose={openWith.focusCompose}
         onBack={() => setOpenWith(null)}
         onActivity={() => loadInbox().catch(() => {})}
@@ -372,6 +383,7 @@ export function Messages({ session, imageboard }: { session: Session; imageboard
           key={c.with}
           conv={c}
           name={names[c.with] ?? null}
+          attested={attested}
           onOpen={() => setOpenWith({ id: c.with, focusCompose: false })}
         />
       ))}
@@ -390,6 +402,7 @@ export function Messages({ session, imageboard }: { session: Session; imageboard
               key={c.with}
               conv={c}
               name={names[c.with] ?? null}
+              attested={attested}
               onOpen={() => setOpenWith({ id: c.with, focusCompose: false })}
               actions={
                 <>
@@ -427,6 +440,7 @@ export function Messages({ session, imageboard }: { session: Session; imageboard
                 key={c.with}
                 conv={c}
                 name={names[c.with] ?? null}
+                attested={attested}
                 onOpen={() => setOpenWith({ id: c.with, focusCompose: false })}
                 actions={
                   <button style={styles.button} onClick={() => restore(c.with)}>
@@ -444,11 +458,13 @@ export function Messages({ session, imageboard }: { session: Session; imageboard
 function ConversationRow({
   conv,
   name,
+  attested,
   onOpen,
   actions,
 }: {
   conv: DmConversation;
   name: string | null;
+  attested?: AttestedCache;
   onOpen: () => void;
   actions?: React.ReactNode;
 }) {
@@ -460,7 +476,12 @@ function ConversationRow({
       title={conv.with}
     >
       <div style={{ display: "flex", gap: "0.75rem", alignItems: "baseline" }}>
-        <AccountLabel id={conv.with} name={name} size={20} />
+        <AccountLabel
+          id={conv.with}
+          name={name}
+          size={20}
+          suffix={attested && attested[conv.with] !== undefined ? <VerifiedBadge since={attested[conv.with]} /> : undefined}
+        />
         <span style={styles.muted}>🔒 encrypted</span>
         <span style={{ flex: 1 }} />
         <span style={styles.muted}>{conv.last?.created_at ?? ""}</span>
@@ -485,6 +506,8 @@ interface ThreadState {
   /** Cursor for OLDER history; null = no more; undefined = not loaded yet. */
   olderCursor: string | null | undefined;
   certsByAccount: Record<string, AuthorKeys>;
+  /** Key continuity (protocol §8.3): current device set vs. the stored pin. */
+  pinDiff: PinDiff | null;
 }
 
 function Thread({
@@ -492,6 +515,7 @@ function Thread({
   withId,
   name,
   ensureNames,
+  attested,
   focusCompose,
   onBack,
   onActivity,
@@ -500,6 +524,7 @@ function Thread({
   withId: string;
   name: string | null;
   ensureNames: (ids: string[]) => void;
+  attested: AttestedCache;
   focusCompose: boolean;
   onBack: () => void;
   onActivity: () => void;
@@ -508,6 +533,7 @@ function Thread({
     byId: {},
     olderCursor: undefined,
     certsByAccount: {},
+    pinDiff: null,
   });
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -542,17 +568,35 @@ function Thread({
 
   /** Latest page + fresh certs; sets the older-cursor only on the first load. */
   const loadLatest = useCallback(async () => {
-    const [page, certsByAccount] = await Promise.all([getDmWith(withId, { limit: PAGE }), fetchCerts()]);
+    const [page, certsByAccount, stored] = await Promise.all([
+      getDmWith(withId, { limit: PAGE }),
+      fetchCerts(),
+      loadPin(withId),
+    ]);
+    const contact = certsByAccount[withId];
+    const current = contact ? currentDeviceIds(contact.device_certs, contact.device_revocations) : [];
+    const pinDiff = diffPin(current, stored);
     setState((prev) => {
       const byId = { ...prev.byId };
       for (const rec of page.records) byId[recordId(rec)] = rec;
       const olderCursor = initialCursorSet.current ? prev.olderCursor : page.next_before;
       initialCursorSet.current = true;
-      return { byId, olderCursor, certsByAccount };
+      return { byId, olderCursor, certsByAccount, pinDiff };
     });
     setLoaded(true);
     setError(null);
   }, [withId, fetchCerts]);
+
+  /**
+   * Key continuity (§8.3): click-through, never a wall — re-pins the current
+   * device set and clears the banner. Does NOT block sending in the meantime.
+   */
+  const trustNewDevices = async () => {
+    const contact = state.certsByAccount[withId];
+    if (!contact) return;
+    await repinFromCerts(withId, contact.device_certs, contact.device_revocations);
+    setState((prev) => ({ ...prev, pinDiff: { firstContact: false, newDevices: [] } }));
+  };
 
   const loadOlder = useCallback(async () => {
     const cursor = state.olderCursor;
@@ -567,7 +611,7 @@ function Thread({
 
   useEffect(() => {
     initialCursorSet.current = false;
-    setState({ byId: {}, olderCursor: undefined, certsByAccount: {} });
+    setState({ byId: {}, olderCursor: undefined, certsByAccount: {}, pinDiff: null });
     setLoaded(false);
     loadLatest().catch((e) => setError(String(e)));
     const timer = setInterval(() => {
@@ -593,6 +637,12 @@ function Thread({
       setComposer(composerSendSuccess);
       // Optimistic: show our own record immediately, then refresh.
       setState((prev) => ({ ...prev, byId: { ...prev.byId, [recordId(rec)]: rec } }));
+      // Key continuity (§8.3): a successful send re-pins the current device
+      // set — this is also how a brand-new contact gets its first pin (TOFU).
+      const contact = state.certsByAccount[withId];
+      if (contact) {
+        await repinFromCerts(withId, contact.device_certs, contact.device_revocations);
+      }
       onActivity();
       loadLatest().catch(() => {});
     } catch (e) {
@@ -610,7 +660,12 @@ function Thread({
         <button style={styles.button} onClick={onBack}>
           ← Back
         </button>
-        <AccountLabel id={withId} name={name} size={20} />
+        <AccountLabel
+          id={withId}
+          name={name}
+          size={20}
+          suffix={attested[withId] !== undefined ? <VerifiedBadge since={attested[withId]} /> : undefined}
+        />
       </header>
       <p style={{ ...styles.muted, marginBottom: "1rem" }} title="tier-2 envelope: sealed to every certified device of both participants">
         🔒 End-to-end encrypted — the server stores only ciphertext.
@@ -634,6 +689,26 @@ function Thread({
       ))}
 
       <div style={{ marginTop: "1rem" }}>
+        {/* Key continuity (§8.3): informational only — never blocks sending. */}
+        {!state.pinDiff?.firstContact && (state.pinDiff?.newDevices.length ?? 0) > 0 && (
+          <div style={styles.noticeCard}>
+            <strong>New device detected</strong>
+            <div style={{ marginTop: "0.25rem" }}>
+              {name ?? shortId(withId)} added a new device since you last messaged them.
+            </div>
+            {attested[withId] !== undefined && (
+              <div style={{ marginTop: "0.25rem" }}>
+                You verified this account on {attested[withId]}; a new device has appeared since. If
+                you can, re-compare your safety numbers.
+              </div>
+            )}
+            <div style={{ marginTop: "0.5rem" }}>
+              <button style={styles.button} onClick={() => trustNewDevices().catch((e) => setError(String(e)))}>
+                Got it — trust their new devices
+              </button>
+            </div>
+          </div>
+        )}
         {composer.notice?.kind === "budget_exhausted" && (
           <div style={styles.noticeCard}>
             <strong>You've used today's cold-outreach budget</strong>

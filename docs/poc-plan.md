@@ -1,6 +1,6 @@
 # Proof-of-Concept Plan
 
-**Status:** Phases 0–5 + S complete. **Phase 5 (M5, tier-3 scoped posts) landed 2026-08-22** — protocol §5 normative, both implementations vector-tested, exit criteria verified by a scripted client-vs-runad run (19/19). Next up: M6 (attestation) per design §12; remaining roadmap M7–M9 (standing/reports, invites/explore, transparency infrastructure) plus the §13 watch-items (real-browser latency at realistic graph sizes before settling §3.3). Groups (design §18) are unblocked now that the epoch recipient set is an abstract source. This file remains the shared work ledger.
+**Status:** Phases 0–5 + S complete; **Phase 6 (M6, attestation) landed 2026-08-24** — protocol §8 normative, both implementations vector-tested (attest-01, safety-number-01), exit criteria verified by a scripted client-vs-runad run (23/23; browser walkthrough pending owner). Next up: M7 (standing/reports) per design §12. Remaining roadmap M7–M9 (standing/reports, invites/explore, transparency infrastructure) plus the §13 watch-items (real-browser latency at realistic graph sizes before settling §3.3). Groups (design §18) are unblocked now that the epoch recipient set is an abstract source. This file remains the shared work ledger.
 
 ## PoC scope & thesis
 
@@ -148,6 +148,29 @@ Goal: "My follows" / "My web" scoped posts via epoch keys (protocol §5, now nor
 - [x] Re-enrollment late-wrap: author's client re-wraps the current epoch key to newly-certified own devices (§5.3, delta only — already-covered devices are not re-wrapped).
 
 **Exit:** two browser profiles: A posts to "My follows"; follower B sees and decrypts it in their feed with a scope badge; stranger C never receives the record (API-level check); B unfollowed → next post in a fresh epoch, B's client shows nothing new; server SQLite dump greps clean of plaintext; A re-enrolls a device and can still read their own scoped history going forward. **Verified 2026-08-22** via scripted client-vs-runad run (web client's own modules, fresh DB): 19/19 assertions — member decrypt, stranger silent omission, rotation with `prev` linkage on unfollow, snapshot semantics (B still reads pre-removal history), late-wrap to a re-enrolled device, DB grep finds ciphertext records but zero plaintext. The run surfaced and fixed one client bug: `listRecords()` wasn't attaching the bearer token, so the member-gated `type=scoped-post` listing silently omitted even the owner's own scoped history.
+
+## Phase 6 — Attestation (M6)
+
+Goal: verification as a separate explicit public edge (design §7.3 — never bundled with follows); safety numbers; key-change alarms; confidence UI; domain proofs checked client-side. TOFU throughout: nothing here gates any capability (architecture invariant 6). Protocol §8 is the normative spec (added in this phase's change).
+
+**Protocol/core (vectors first):**
+- [x] `packages/core`: `attestation` / `attestation-revoke` / `domain-claim` record support (sign/verify via the generic record path; type-specific validation: `subject_root_pub == subject`, known `method`, no self-attestation, hostname shape); pairwise safety-number derivation (§8.2); active-attestation reduction (latest-wins per author/subject, as follow/unfollow).
+- [x] Vectors: `attest-01` (valid attestation + revoke; failure cases: `subject_root_pub` mismatch, unknown method, self-attestation, tampered sig) and `safety-number-01` (fixed id pairs → 60-digit numbers, symmetry case); consumed by both TS and Go suites.
+
+**Server:**
+- [x] Ingest via `POST /records`: `attestation` (subject exists → `400 unknown_account`; `subject_root_pub`/method/self-attestation checks → `400 invalid_record`), `attestation-revoke`, `domain-claim` (hostname shape); materialization table (migration 0008) with latest-wins active state; never metered.
+- [x] `GET /accounts/{id}/attestations` (unauthenticated — public by design) with attester cert-bundle inlining + pagination; `domain-claim` served in public record listings.
+- [x] Integration tests: ingest validity matrix, revoke supersession, endpoint shape, attestation-not-metered check.
+
+**Client:**
+- [x] Verify flow on the profile page: fingerprint + pairwise safety number displayed (§8.2), "I compared these numbers" → sign + publish `attestation` (method `safety-number`); withdraw (`attestation-revoke`). QR scan/render deferred (same protocol, presentation only).
+- [x] Confidence UI: "verified by you" badge wherever accounts render (AccountLabel); "attested by N you trust" on the profile — each attestation signature+chain verified client-side and filtered by the viewer's own trust map (server list = candidate, never authority).
+- [x] Key continuity: local per-contact device-set pins; pre-send warning banner in the DM composer when a contact gained devices since last pin (louder if previously attested), click-through re-pins — never a wall (§8.3); attesting re-pins.
+- [x] Domain proofs (§8.4): add/remove a `domain-claim` + downloadable `/.well-known/runa.json`; viewing client fetches + verifies locally (CORS caveat surfaced in UI), verified domain badge; "attest via domain proof" publishes method `domain-proof`.
+- [x] Explainer: `docs/explainers/how-crypto-works.md` gains a plain-language attestation/safety-number section (same change — working agreement).
+- Deferred within M6: QR camera flow (presentation of the same fingerprint), strictness toggles ("require verified keys for tier-2", "warn before unverified in epoch distribution" — §8.3 records the defaults), attestation notifications (no notification rail yet; unmetered until then, §8.1).
+
+**Exit:** two browser profiles: A and B open each other's profiles, see the *same* 60-digit safety number, both confirm → each publishes an attestation; B's client shows A as "verified by you" (and A's attestation of B is visible to a third account C as "attested by 1"); A enrolls a new device → B's DM composer shows the key-change notice before the next send, click-through clears it; B revokes → badge gone; a `domain-claim` with a served well-known file renders the domain verified in C's client (local fixture). **Verified 2026-08-24** via scripted client-vs-runad run (web client's own modules, fresh DB): 23/23 assertions — safety-number symmetry/format, unmetered public attestation, unauthenticated endpoint + client-side re-verification (sig + cert chain, server list as candidate only), full ingest rejection matrix (self/mismatch/unknown-method/unknown-subject), revoke supersession incl. the equal-timestamp tie-break, new-device pin detection + re-pin + first-contact TOFU, and domain-claim listing + well-known verification incl. author/host-mismatch neutral failures. Real-browser two-profile walkthrough (badges, composer banner, QR-less verify screens) left for the owner's next manual pass.
 
 ## Working agreements for implementing agents
 

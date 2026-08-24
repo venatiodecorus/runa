@@ -12,6 +12,6 @@ Go (≥1.23), standard library `net/http` with 1.22+ pattern routing — no web 
 
 ## Consequences
 
-- Record verification and trust math are implemented twice (Go + TS) — intended; shared JSON test vectors keep them in lockstep (protocol §8).
+- Record verification and trust math are implemented twice (Go + TS) — intended; shared JSON test vectors keep them in lockstep (protocol §9).
 - `crypto/ed25519`, `golang.org/x/crypto` (curve25519, chacha20poly1305, hkdf) cover every server-side primitive with no cgo.
 - Single static binary + SQLite file = trivial PoC deployment.

@@ -68,6 +68,58 @@ func (s *server) applyGraphRecord(typ string, rec *record.Record, recordID strin
 	return nil
 }
 
+// newerOrEqualRevokeExists reports whether the attester has a stored
+// attestation-revoke of subject with created_at >= createdAt — the §8.1
+// tie-break: a revoke that ties with (or postdates) an attestation
+// supersedes it, the opposite of newerNegationExists' strict inequality
+// for follow/unfollow.
+func (s *server) newerOrEqualRevokeExists(attester, subject, createdAt string) (bool, error) {
+	bodies, err := s.st.RecordBodies(attester, "attestation-revoke")
+	if err != nil {
+		return false, err
+	}
+	for _, body := range bodies {
+		var rev struct {
+			Subject   string `json:"subject"`
+			CreatedAt string `json:"created_at"`
+		}
+		if err := json.Unmarshal(body, &rev); err != nil {
+			return false, err
+		}
+		if rev.Subject == subject && rev.CreatedAt >= createdAt {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// applyAttestationRecord materializes a verified, stored attestation or
+// attestation-revoke record into the attestations table (docs/protocol.md
+// §8.1): latest created_at wins per (attester, subject), with ties broken
+// toward the revoke — a revoke with created_at >= the attestation's
+// supersedes it, in both arrival orders.
+func (s *server) applyAttestationRecord(typ string, rec *record.Record, recordID string) error {
+	subject, _ := rec.String("subject")
+	switch typ {
+	case "attestation":
+		superseded, err := s.newerOrEqualRevokeExists(rec.Author(), subject, rec.CreatedAt())
+		if err != nil || superseded {
+			return err
+		}
+		method, _ := rec.String("method")
+		return s.st.UpsertAttestation(store.Attestation{
+			Attester:  rec.Author(),
+			Subject:   subject,
+			Method:    method,
+			RecordID:  recordID,
+			CreatedAt: rec.CreatedAt(),
+		})
+	case "attestation-revoke":
+		return s.st.DeleteAttestationsBeforeOrAt(rec.Author(), subject, rec.CreatedAt())
+	}
+	return nil
+}
+
 // --- endpoints ---
 
 // handleGetFollows serves the current outbound follow list as signed

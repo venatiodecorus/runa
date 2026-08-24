@@ -27,6 +27,8 @@ import { AccountLabel } from "./AccountLabel.js";
 import { ReplyComposer } from "./ReplyComposer.js";
 import { badgeStyle, styles } from "./theme.js";
 import { verifiedDisplayName } from "./authors.js";
+import { useAttestedCache, VerifiedBadge } from "./attested.js";
+import type { AttestedCache } from "../verify/attestations.js";
 import type { Session } from "./session.js";
 
 interface FeedState {
@@ -56,6 +58,7 @@ export function Feed({
   const [state, setState] = useState<FeedState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const { attested } = useAttestedCache();
 
   const load = useCallback(async () => {
     setError(null);
@@ -112,6 +115,7 @@ export function Feed({
       authorBundle={feed.authors[r.item.author]}
       imageboard={imageboard}
       session={session}
+      attested={attested}
       onOpenPost={onOpenPost}
       onViewAccount={onViewAccount}
       onReplyPosted={() => load().catch((e) => setError(String(e)))}
@@ -203,6 +207,7 @@ function FeedCard({
   authorBundle,
   imageboard,
   session,
+  attested,
   onOpenPost,
   onViewAccount,
   onReplyPosted,
@@ -213,6 +218,7 @@ function FeedCard({
   authorBundle?: FeedAuthor;
   imageboard: boolean;
   session: Session;
+  attested: AttestedCache;
   onOpenPost: (id: string) => void;
   onViewAccount: (id: string) => void;
   onReplyPosted: () => void;
@@ -256,7 +262,12 @@ function FeedCard({
   return (
     <div style={styles.card}>
       <div style={{ ...styles.muted, marginBottom: "0.35rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-        <AccountLabel id={author} name={name} onClick={() => onViewAccount(author)} />
+        <AccountLabel
+          id={author}
+          name={name}
+          onClick={() => onViewAccount(author)}
+          suffix={attested[author] !== undefined ? <VerifiedBadge since={attested[author]} /> : undefined}
+        />
         <span title="effective trust, recomputed locally from your 2-hop slice">
           {item.own ? "you" : `trust ${trimTrust(item.trust)}`}
         </span>

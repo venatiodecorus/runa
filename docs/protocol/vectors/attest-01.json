@@ -1,0 +1,184 @@
+{
+  "description": "Attestation records (protocol §8.1, §8.4). Keys from the given hex seeds (test keys only); `certs` is context for chain verification. Verification cases expect `valid`; the `reduction` case feeds attestations+revokes through latest-wins active-state reduction (revoke with created_at >= attestation's supersedes it) and expects `active_authors`.",
+  "seeds": {
+    "attester_root_ed25519": "1111111111111111111111111111111111111111111111111111111111111111",
+    "attester_device_ed25519": "2222222222222222222222222222222222222222222222222222222222222222",
+    "subject_root_ed25519": "4444444444444444444444444444444444444444444444444444444444444444"
+  },
+  "keys": {
+    "attester_account_id": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+    "attester_device_id": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+    "subject_account_id": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg"
+  },
+  "certs": [
+    {
+      "v": 1,
+      "type": "device-cert",
+      "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+      "created_at": "2026-08-20T12:00:00Z",
+      "device_sign_pub": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+      "device_kex_pub": "ew1H2TQn-DERYHgcfHM_2J-IlwrvSQ2KoO4ZpMuKGxQ",
+      "sig": "QqeFztUkN0Vhv9oV1hL8h66765yIqXJ-d9X6ODk539XaSGNuafEct8EKCJqYEK578kw_h8HQK_-3ct8Ju_4nBQ"
+    }
+  ],
+  "cases": [
+    {
+      "name": "valid attestation (safety-number)",
+      "record": {
+        "v": 1,
+        "type": "attestation",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-24T12:00:00Z",
+        "subject": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+        "subject_root_pub": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+        "method": "safety-number",
+        "sig": "HokTKZgib0ZWph6ierZ99cwx3uyDWosmdYfUYIBgPrGp773391OST-fggy75i_4Iy1egQJrOCvgZOiTqZXXCDw"
+      },
+      "valid": true,
+      "check": "chain"
+    },
+    {
+      "name": "valid attestation-revoke",
+      "record": {
+        "v": 1,
+        "type": "attestation-revoke",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-25T12:00:00Z",
+        "subject": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+        "sig": "2cB9bOND6tqt6S78iAkOlMs-01ws0AQ5C-y5ZJRJSo0HcrWaarPH9nDV2MndqCwweZuBXqsISOnbPbs3SfcMDg"
+      },
+      "valid": true,
+      "check": "chain"
+    },
+    {
+      "name": "valid domain-claim",
+      "record": {
+        "v": 1,
+        "type": "domain-claim",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-24T12:00:00Z",
+        "domain": "example.com",
+        "sig": "5Wh8F35IxnB9DQXE6kq_72Q8Ffo1iyau8B8n7o2ddXYkCMLZsHvxFuRtcw5o0IQhOCg6tTv5-s-rWhpGmtjJDw"
+      },
+      "valid": true,
+      "check": "chain"
+    },
+    {
+      "name": "subject_root_pub mismatch",
+      "record": {
+        "v": 1,
+        "type": "attestation",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-24T12:00:00Z",
+        "subject": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+        "subject_root_pub": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "method": "safety-number",
+        "sig": "HokTKZgib0ZWph6ierZ99cwx3uyDWosmdYfUYIBgPrGp773391OST-fggy75i_4Iy1egQJrOCvgZOiTqZXXCDw"
+      },
+      "valid": false,
+      "check": "type",
+      "reason": "subject_root_pub must equal subject (§8.1)"
+    },
+    {
+      "name": "unknown method",
+      "record": {
+        "v": 1,
+        "type": "attestation",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-24T12:00:00Z",
+        "subject": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+        "subject_root_pub": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+        "method": "vibes",
+        "sig": "HokTKZgib0ZWph6ierZ99cwx3uyDWosmdYfUYIBgPrGp773391OST-fggy75i_4Iy1egQJrOCvgZOiTqZXXCDw"
+      },
+      "valid": false,
+      "check": "type",
+      "reason": "method must be qr | safety-number | domain-proof"
+    },
+    {
+      "name": "self-attestation",
+      "record": {
+        "v": 1,
+        "type": "attestation",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-24T12:00:00Z",
+        "subject": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "subject_root_pub": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "method": "qr",
+        "sig": "6Rx3v4DDyLV_-XmxVWwrBQC2Lc6NOPiJERk7dPvMznxFB-hmIaY62q4xZ4VDQmZM20iOuztySx15R08_Y321Bw"
+      },
+      "valid": false,
+      "check": "type",
+      "reason": "author == subject is rejected (§8.1)"
+    },
+    {
+      "name": "tampered method (sig fails)",
+      "record": {
+        "v": 1,
+        "type": "attestation",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-24T12:00:00Z",
+        "subject": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+        "subject_root_pub": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+        "method": "qr",
+        "sig": "HokTKZgib0ZWph6ierZ99cwx3uyDWosmdYfUYIBgPrGp773391OST-fggy75i_4Iy1egQJrOCvgZOiTqZXXCDw"
+      },
+      "valid": false,
+      "check": "signature",
+      "reason": "signature must fail after tamper"
+    },
+    {
+      "name": "bad domain (scheme included)",
+      "record": {
+        "v": 1,
+        "type": "domain-claim",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-24T12:00:00Z",
+        "domain": "https://example.com",
+        "sig": "5Wh8F35IxnB9DQXE6kq_72Q8Ffo1iyau8B8n7o2ddXYkCMLZsHvxFuRtcw5o0IQhOCg6tTv5-s-rWhpGmtjJDw"
+      },
+      "valid": false,
+      "check": "type",
+      "reason": "domain is a bare lowercase hostname (§8.4)"
+    }
+  ],
+  "reduction": {
+    "subject": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+    "attestations": [
+      {
+        "v": 1,
+        "type": "attestation",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-24T12:00:00Z",
+        "subject": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+        "subject_root_pub": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+        "method": "safety-number",
+        "sig": "HokTKZgib0ZWph6ierZ99cwx3uyDWosmdYfUYIBgPrGp773391OST-fggy75i_4Iy1egQJrOCvgZOiTqZXXCDw"
+      }
+    ],
+    "revokes": [
+      {
+        "v": 1,
+        "type": "attestation-revoke",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-25T12:00:00Z",
+        "subject": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+        "sig": "2cB9bOND6tqt6S78iAkOlMs-01ws0AQ5C-y5ZJRJSo0HcrWaarPH9nDV2MndqCwweZuBXqsISOnbPbs3SfcMDg"
+      }
+    ],
+    "active_authors": [],
+    "without_revokes_active_authors": [
+      "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc"
+    ]
+  }
+}

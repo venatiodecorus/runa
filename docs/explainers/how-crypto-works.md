@@ -23,7 +23,21 @@ Content comes in three privacy tiers:
 2. **Direct messages** — end-to-end encrypted. Your client fetches the recipient's device certificates, encrypts a fresh random key to *each of their devices* (and your own other devices), and encrypts the message with it. The server stores and delivers ciphertext it cannot read. Version fields are built into every envelope, so stronger schemes (like double-ratchet forward secrecy) can roll out later without breaking anything.
 3. **Web-scoped posts** — private posts to "My follows" or "My web," encrypted to that audience *as it exists at the moment you post*. Details and honest caveats below.
 
-Verification is separate from following, on purpose. Following someone means "show me their posts" — it says nothing about keys. **Attestation** is a distinct, deliberate act: scanning a fingerprint QR in person, comparing safety numbers over another channel, or checking a proof posted on a domain the person controls. Encryption works without any of this (trust-on-first-use, like Signal); attestation raises displayed confidence and arms the one loud alarm that matters: *"this person's key changed and nobody who verified them before has re-verified."* Verification never gates capability — it informs it.
+Verification is separate from following, on purpose. Following someone means "show me their posts" — it says nothing about keys. Verifying keys is its own act, described next.
+
+## Verifying that a key belongs to a person
+
+Encryption works from the very first message with no setup — your client just uses the keys the server hands it (trust-on-first-use, like Signal). That's the right default, and it leaves exactly one gap: the *first* time you ever contact someone, a malicious server could in principle hand you the wrong key. Attestation is how you close that gap when it matters.
+
+**Attestation** is a distinct, deliberate statement — "I checked, out-of-band, that this key belongs to the person I think it does" — made one of three ways:
+
+- **Safety numbers.** Open someone's profile and your client shows a 60-digit number computed from your key and theirs together. Their client shows *the same number* to them. Read it to each other on a call, in person, over any channel you already trust; if the digits match, the keys are real, and one tap publishes your attestation. (If a server had substituted a key on either side, the numbers would not match — this check exposes it retroactively, which is exactly why a server thinking about it shouldn't.)
+- **QR fingerprint scan** in person — the same check, camera instead of voice.
+- **Domain proofs.** Someone who controls a website can claim it and put a small signed file at a standard location on that site. *Your* client fetches the file and checks the signature itself — the server is never asked to vouch. It's the only method that scales to verifying strangers and institutions.
+
+Attestations are **public by design** — a verifiability claim you hide is worthless, so be aware that *"who verified whom"* is visible to everyone, including the server. They're also signed like everything else: the server can withhold them, but can never forge one from you.
+
+What attestation buys you is *displayed confidence* and one loud alarm. Accounts you've verified get a checkmark that your own client computed and nobody can fake. Profiles show how many people *you trust* have verified an account — your web's judgment, not a global score. And the alarm: your client quietly remembers which devices your contacts had when you last checked; if someone you verified suddenly sprouts a new device, you're told before your next private message — *"a new device appeared since you verified them; re-compare your safety numbers if you can."* It's a warning you can click through, never a wall: someone whose phone died deserves your message, not a lockout. Verification never gates capability — it informs it.
 
 ## Private posts to your followers or your web
 

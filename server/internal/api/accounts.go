@@ -14,21 +14,24 @@ import (
 const maxBodyBytes = 1 << 20
 
 // Accepted record types (docs/protocol.md §6): Phase 1 identity/content,
-// the Phase 2 graph types, the Phase 3 dm envelope, and the Phase 5 tier-3
-// types.
+// the Phase 2 graph types, the Phase 3 dm envelope, the Phase 5 tier-3
+// types, and the Phase 6 attestation types.
 var acceptedTypes = map[string]bool{
-	"post":          true,
-	"profile":       true,
-	"device-cert":   true,
-	"device-revoke": true,
-	"follow":        true,
-	"unfollow":      true,
-	"mute":          true,
-	"unmute":        true,
-	"dm":            true,
-	"epoch":         true,
-	"epoch-key":     true,
-	"scoped-post":   true,
+	"post":               true,
+	"profile":            true,
+	"device-cert":        true,
+	"device-revoke":      true,
+	"follow":             true,
+	"unfollow":           true,
+	"mute":               true,
+	"unmute":             true,
+	"dm":                 true,
+	"epoch":              true,
+	"epoch-key":          true,
+	"scoped-post":        true,
+	"attestation":        true,
+	"attestation-revoke": true,
+	"domain-claim":       true,
 }
 
 // tier3Types are the scoped-post machinery of docs/protocol.md §5: extra
@@ -50,7 +53,11 @@ var graphTypes = map[string]bool{
 // publicListTypes are the only record types GET /accounts/{id}/records may
 // serve: follows are follower-visible via /accounts/{id}/follows only, and
 // mutes are never served to anyone but their author (docs/protocol.md §6).
-var publicListTypes = []string{"post", "profile", "device-cert", "device-revoke"}
+// attestation/attestation-revoke/domain-claim are public by design (§3.1,
+// §8) — attestations also have their own dedicated, authors-bundled
+// endpoint (GET /accounts/{id}/attestations), but the generic listing
+// serves them too, and domain-claim is served only here.
+var publicListTypes = []string{"post", "profile", "device-cert", "device-revoke", "attestation", "attestation-revoke", "domain-claim"}
 
 func nowUTC() string {
 	return time.Now().UTC().Format("2006-01-02T15:04:05Z")
@@ -276,6 +283,15 @@ func (s *server) handleIngestRecord(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if (typ == "attestation" || typ == "attestation-revoke") && !s.validateAttestationIngest(w, rec, typ) {
+		return
+	}
+	if typ == "domain-claim" {
+		if err := record.ValidateDomainClaim(rec); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_record", err.Error())
+			return
+		}
+	}
 	if typ == "dm" && !s.validateDMIngest(w, rec) {
 		return
 	}
@@ -312,6 +328,8 @@ func (s *server) handleIngestRecord(w http.ResponseWriter, r *http.Request) {
 		err = s.st.InsertDM(row.ID, rec.Author(), to, rec.CreatedAt())
 	case "epoch", "epoch-key", "scoped-post":
 		err = s.applyTier3Record(typ, rec, row.ID)
+	case "attestation", "attestation-revoke":
+		err = s.applyAttestationRecord(typ, rec, row.ID)
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())
