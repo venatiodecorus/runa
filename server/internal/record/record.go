@@ -165,3 +165,22 @@ func DecodeKey(s string) ([]byte, error) {
 	}
 	return b, nil
 }
+
+// DecodeID decodes a base64url-nopad 32-byte content address — a record id
+// (b64url(SHA-256(canonical bytes))), which happens to share DecodeKey's
+// alphabet and length despite coming from an unrelated encoding (a digest,
+// not an Ed25519 key). Identical checks to DecodeKey, but with error text
+// that doesn't misleadingly call a record id a "key".
+func DecodeID(s string) ([]byte, error) {
+	if s == "" {
+		return nil, errors.New("missing id")
+	}
+	b, err := base64.RawURLEncoding.Strict().DecodeString(s)
+	if err != nil {
+		return nil, errors.New("not valid base64url")
+	}
+	if len(b) != 32 {
+		return nil, errors.New("must decode to 32 bytes")
+	}
+	return b, nil
+}

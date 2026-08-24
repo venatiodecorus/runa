@@ -62,11 +62,15 @@ export interface FeedItem {
   author: string;
   /** Server's proposal only — the client recomputes and re-ranks (§3.3). */
   candidate_trust: number;
+  /** Total reply count for this record (protocol §6 "Replies & threads"). */
+  reply_count: number;
 }
 
 export interface FeedAuthor {
   device_certs: DeviceCert[];
   device_revocations: DeviceRevoke[];
+  /** Latest profile record, UNVERIFIED — verify before rendering a name. */
+  profile: RunaRecord | null;
 }
 
 export interface FeedResponse {
@@ -189,6 +193,47 @@ export function getGraph2Hop(): Promise<Graph2Hop> {
  */
 export function getFeed(): Promise<FeedResponse> {
   return request("/feed", { auth: true });
+}
+
+// --- single records & replies (protocol §6 "Replies & threads") ------------
+
+export interface RecordResponse {
+  record: RunaRecord;
+  author: FeedAuthor;
+  reply_count: number;
+  candidate_trust: number;
+}
+
+export interface RepliesResponse {
+  /** Every reply, oldest first (thread order). */
+  items: FeedItem[];
+  authors: Record<string, FeedAuthor>;
+  next_after: string | null;
+}
+
+/**
+ * GET /records/{id} (auth optional; attached when present so
+ * candidate_trust is meaningful) — one public-type record, its author's cert
+ * bundle/profile, and its reply count. 404 not_found for unknown/private ids.
+ */
+export function getRecord(id: string): Promise<RecordResponse> {
+  return request(`/records/${encodeURIComponent(id)}`, { auth: true });
+}
+
+/**
+ * GET /records/{id}/replies (auth optional, attached when present) — every
+ * reply to a post, oldest first; `after` pages forward (unlike the `before`
+ * cursors used elsewhere).
+ */
+export function getReplies(
+  id: string,
+  opts: { limit?: number; after?: string } = {},
+): Promise<RepliesResponse> {
+  const params = new URLSearchParams();
+  if (opts.limit !== undefined) params.set("limit", String(opts.limit));
+  if (opts.after !== undefined) params.set("after", opts.after);
+  const qs = params.toString();
+  return request(`/records/${encodeURIComponent(id)}/replies${qs ? `?${qs}` : ""}`, { auth: true });
 }
 
 // --- DMs (protocol §4 envelope, §6 mailbox) ---------------------------------

@@ -127,3 +127,60 @@ function safeRecordId(item: FeedItem): string {
     return `unverifiable:${item.author}:${String(item.record.created_at)}:${String(item.record.sig ?? "")}`;
   }
 }
+
+export interface BucketedReplies {
+  /** Always shown in-thread: the viewer's own, the post author's, and normal-trust replies. */
+  normal: RankedItem[];
+  /** Below-threshold or no-path replies from anyone other than the viewer or the post's author. */
+  collapsed: RankedItem[];
+}
+
+/** created_at asc, then record id asc — thread order, not trust order. */
+function compareThreadOrder(a: RankedItem, b: RankedItem): number {
+  const ca = String(a.item.record.created_at);
+  const cb = String(b.item.record.created_at);
+  if (ca !== cb) return ca < cb ? -1 : 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/**
+ * Bucket one thread's replies for display under a post (design §3.3 applied
+ * in-thread rather than across the feed): the viewer's own replies and the
+ * post author's replies always show, since the thread belongs to them;
+ * everyone else follows the normal feed-bucket cut. Trust math is the exact
+ * same `trustMap` call as `rankFeed` — never reimplemented — but the buckets
+ * are sorted chronologically, because the reader is inside one conversation,
+ * not scanning a ranked feed.
+ */
+export function bucketReplies(
+  viewer: string,
+  postAuthor: string,
+  items: FeedItem[],
+  graph: GraphView,
+  constants: TrustConstants = CONSTANTS,
+): BucketedReplies {
+  const trust = trustMap(viewer, graph, constants);
+  const normal: RankedItem[] = [];
+  const collapsed: RankedItem[] = [];
+  for (const item of items) {
+    const own = item.author === viewer;
+    // Own content is outside trust (core throws on self-trust); rank it at
+    // the cap, matching rankFeed's treatment.
+    const subjective = own ? constants.multi_path_sum_cap : (trust[item.author] ?? 0);
+    const ranked: RankedItem = {
+      item,
+      id: safeRecordId(item),
+      trust: effectiveTrust(subjective),
+      own,
+    };
+    const alwaysShown = own || item.author === postAuthor;
+    if (alwaysShown || feedBucket(ranked.trust, constants) === "normal") {
+      normal.push(ranked);
+    } else {
+      collapsed.push(ranked);
+    }
+  }
+  normal.sort(compareThreadOrder);
+  collapsed.sort(compareThreadOrder);
+  return { normal, collapsed };
+}

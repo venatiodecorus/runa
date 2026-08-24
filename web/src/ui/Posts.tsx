@@ -29,8 +29,23 @@ import type { Session } from "./session.js";
 interface VerifiedItem {
   record: RunaRecord;
   error: string | null; // null = verified OK
+  /** Best-effort content-addressed id, for the "view thread" link. */
+  id: string;
   /** Only present for type "scoped-post" records that verified OK. */
   opened?: OpenScopedPostResult;
+}
+
+/**
+ * recordId is total over well-formed records; a malformed record must not
+ * crash rendering (it shows the unverifiable placeholder anyway), so fall
+ * back to a best-effort stable key.
+ */
+function safeId(record: RunaRecord): string {
+  try {
+    return recordId(record);
+  } catch {
+    return `unverifiable:${record.author}:${String(record.created_at)}:${String(record.sig ?? "")}`;
+  }
 }
 
 export function verifyAll(
@@ -38,13 +53,14 @@ export function verifyAll(
   info: { device_certs: DeviceCert[]; device_revocations: DeviceRevoke[] },
 ): VerifiedItem[] {
   return records.map((record) => {
+    const id = safeId(record);
     try {
       // verifyAuthoredRecord re-validates the certs/revocations themselves
       // (signature + type + binding) before trusting them.
       verifyAuthoredRecord(record, info.device_certs, info.device_revocations);
-      return { record, error: null };
+      return { record, error: null, id };
     } catch (e) {
-      return { record, error: e instanceof Error ? e.message : String(e) };
+      return { record, error: e instanceof Error ? e.message : String(e), id };
     }
   });
 }
@@ -67,10 +83,12 @@ export function PostList({
   session,
   account,
   refreshKey,
+  onOpenPost,
 }: {
   session: Session;
   account: string;
   refreshKey?: number;
+  onOpenPost?: (id: string) => void;
 }) {
   const [items, setItems] = useState<VerifiedItem[] | null>(null);
   const [cursors, setCursors] = useState<Cursors | null>(null);
@@ -123,7 +141,7 @@ export function PostList({
   return (
     <div>
       {items.map((item, i) => (
-        <PostCard key={i} item={item} />
+        <PostCard key={i} item={item} onOpenPost={onOpenPost} />
       ))}
       {canLoadOlder && cursors && (
         <button style={styles.button} onClick={() => load(cursors).catch((e) => setError(String(e)))}>
@@ -154,8 +172,8 @@ function AudienceBadge({ record, opened }: { record: RunaRecord; opened?: OpenSc
   );
 }
 
-function PostCard({ item }: { item: VerifiedItem }) {
-  const { record, error, opened } = item;
+function PostCard({ item, onOpenPost }: { item: VerifiedItem; onOpenPost?: (id: string) => void }) {
+  const { record, error, opened, id } = item;
   if (error !== null) {
     // Verification failed: visible placeholder, content never rendered.
     return (
@@ -203,6 +221,39 @@ function PostCard({ item }: { item: VerifiedItem }) {
         {record.created_at} · device <span style={styles.mono}>{shortId(record.device ?? "")}</span>
         <span title="signature and device-cert chain verified by this client"> · verified ✓</span>
       </div>
+      {typeof record.reply_to === "string" && (
+        <div style={{ ...styles.muted, marginTop: "0.3rem" }}>
+          ↳ reply
+          {onOpenPost && (
+            <>
+              {" · "}
+              <a
+                href="#"
+                title="open the thread this post replies into"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onOpenPost(String(record.reply_to));
+                }}
+              >
+                view parent
+              </a>
+            </>
+          )}
+        </div>
+      )}
+      {onOpenPost && (
+        <div style={{ ...styles.muted, marginTop: "0.3rem" }}>
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              onOpenPost(id);
+            }}
+          >
+            view thread
+          </a>
+        </div>
+      )}
     </div>
   );
 }

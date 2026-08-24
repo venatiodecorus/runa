@@ -17,7 +17,16 @@ import type { Session } from "./session.js";
 
 type Audience = "public" | "follows" | "web";
 
-export function Home({ session }: { session: Session }) {
+export function Home({
+  session,
+  imageboard: _imageboard,
+  onOpenPost,
+}: {
+  session: Session;
+  /** Own timeline stays id-only regardless — kept for call-site consistency. */
+  imageboard?: boolean;
+  onOpenPost?: (id: string) => void;
+}) {
   const [body, setBody] = useState("");
   const [audience, setAudience] = useState<Audience>("public");
   const [busy, setBusy] = useState(false);
@@ -108,7 +117,7 @@ export function Home({ session }: { session: Session }) {
         </div>
       </div>
       <h3>Your posts</h3>
-      <PostList session={session} account={session.root.account} refreshKey={refreshKey} />
+      <PostList session={session} account={session.root.account} refreshKey={refreshKey} onOpenPost={onOpenPost} />
     </section>
   );
 }

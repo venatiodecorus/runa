@@ -10,7 +10,9 @@ import (
 var ErrAccountExists = errors.New("account already exists")
 
 // RecordRow is a stored signed record. Device is empty for root-signed
-// records; Body is the canonical JSON, served verbatim.
+// records; Body is the canonical JSON, served verbatim. ReplyTo is set only
+// for `post` records that carry a `reply_to` field (docs/protocol.md §3.1),
+// empty otherwise.
 type RecordRow struct {
 	ID        string
 	Account   string
@@ -18,6 +20,7 @@ type RecordRow struct {
 	Type      string
 	CreatedAt string
 	Body      []byte
+	ReplyTo   string
 }
 
 // Device is the materialized state of a device cert (+ any revocation).
@@ -55,8 +58,8 @@ func (s *Store) CreateAccountWithCert(accountID, createdAt string, cert RecordRo
 		return err
 	}
 	if _, err := tx.Exec(
-		`INSERT OR IGNORE INTO records (id, account, device, type, created_at, body) VALUES (?, ?, ?, ?, ?, ?)`,
-		cert.ID, cert.Account, nullable(cert.Device), cert.Type, cert.CreatedAt, string(cert.Body),
+		`INSERT OR IGNORE INTO records (id, account, device, type, created_at, body, reply_to) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		cert.ID, cert.Account, nullable(cert.Device), cert.Type, cert.CreatedAt, string(cert.Body), nullable(cert.ReplyTo),
 	); err != nil {
 		return err
 	}
@@ -79,8 +82,8 @@ func (s *Store) AccountExists(id string) (bool, error) {
 // content-addressed, so re-submission is idempotent).
 func (s *Store) InsertRecord(r RecordRow) error {
 	_, err := s.DB.Exec(
-		`INSERT OR IGNORE INTO records (id, account, device, type, created_at, body) VALUES (?, ?, ?, ?, ?, ?)`,
-		r.ID, r.Account, nullable(r.Device), r.Type, r.CreatedAt, string(r.Body),
+		`INSERT OR IGNORE INTO records (id, account, device, type, created_at, body, reply_to) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		r.ID, r.Account, nullable(r.Device), r.Type, r.CreatedAt, string(r.Body), nullable(r.ReplyTo),
 	)
 	return err
 }

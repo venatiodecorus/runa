@@ -84,6 +84,14 @@
       ]
     }
   ],
+  "replies": [
+    { "from": "bob", "to": "alice", "post": 1, "body": "Dinner-table moss deserves a dinner table. I could make one." },
+    { "from": "carol", "to": "alice", "post": 1, "body": "Crumb shot of the moss, please." },
+    { "from": "dan", "to": "alice", "post": 1, "body": "Which species? Asking for a very specific spreadsheet." },
+    { "from": "zed", "to": "alice", "post": 1, "body": "where exactly is this? coordinates?" },
+    { "from": "alice", "to": "alice", "post": 1, "body": "Species TBD — the spreadsheet will have to wait for the microscope." },
+    { "from": "alice", "to": "bob", "post": 2, "body": "'Oh' is the correct review for a good chair." }
+  ],
   "dms": [
     { "from": "alice", "to": "bob", "body": "Is chair no. 45 still on track? I have a bog-damaged boot that needs somewhere dignified to retire." },
     { "from": "bob", "to": "alice", "body": "On track. The boot can have the footstool. No charge for veterans of the wetland campaign." },

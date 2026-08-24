@@ -17,6 +17,7 @@ import {
 } from "../api/client.js";
 import { formatBudgetMeter } from "../dm/budget.js";
 import { buildGraphRecord, type GraphRecordType } from "../crypto/graph.js";
+import { Identicon } from "./Identicon.js";
 import { PostList, verifyAll } from "./Posts.js";
 import { shortId, styles } from "./theme.js";
 import type { Session } from "./session.js";
@@ -25,11 +26,13 @@ export function Profile({
   session,
   account,
   imageboard = false,
+  onOpenPost,
 }: {
   session: Session;
   account: string;
   /** Instance runs imageboard mode (design §17): no profiles, ids only. */
   imageboard?: boolean;
+  onOpenPost?: (id: string) => void;
 }) {
   const [lookup, setLookup] = useState(account);
   const [target, setTarget] = useState(account);
@@ -55,7 +58,7 @@ export function Profile({
       </form>
       <ProfileCard key={target} session={session} account={target} imageboard={imageboard} />
       <h3>Posts</h3>
-      <PostList session={session} account={target} />
+      <PostList session={session} account={target} onOpenPost={onOpenPost} />
     </section>
   );
 }
@@ -139,7 +142,8 @@ function ProfileCard({
 
   return (
     <div style={styles.card}>
-      <h2 style={{ margin: "0 0 0.25rem" }}>
+      <h2 style={{ margin: "0 0 0.25rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <Identicon id={account} size={40} title={account} />
         {verifiedProfile ? String(verifiedProfile.display_name ?? shortId(account)) : shortId(account)}
         {isOwn && <span style={styles.muted}> (you)</span>}
       </h2>

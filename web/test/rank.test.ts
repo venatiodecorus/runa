@@ -7,15 +7,16 @@
 import { describe, expect, it } from "vitest";
 import { CONSTANTS, trustMap, type GraphView } from "@runa/core";
 import type { FeedItem } from "../src/api/client.js";
-import { instanceConstants, rankFeed } from "../src/feed/rank.js";
+import { bucketReplies, instanceConstants, rankFeed } from "../src/feed/rank.js";
 
 const V = "viewer";
 
-function item(author: string, created_at: string, body: string, candidate = 0): FeedItem {
+function item(author: string, created_at: string, body: string, candidate = 0, reply_count = 0): FeedItem {
   return {
     record: { v: 1, type: "post", author, device: "dev", created_at, body, sig: "s" },
     author,
     candidate_trust: candidate,
+    reply_count,
   };
 }
 
@@ -127,5 +128,47 @@ describe("instanceConstants", () => {
   it("badges deviations on non-trust constants too (design §15)", () => {
     const { deviantKeys } = instanceConstants({ ...CONSTANTS, cold_budget_open: 7 });
     expect(deviantKeys).toEqual(["cold_budget_open"]);
+  });
+});
+
+describe("bucketReplies", () => {
+  it("shows a followed replier's reply in the normal bucket", () => {
+    const reply = item("A", "2026-08-20T12:00:00Z", "reply-a");
+    const { normal, collapsed } = bucketReplies(V, "someone-else", [reply], graph);
+    expect(normal.map((r) => r.item.author)).toEqual(["A"]);
+    expect(collapsed).toHaveLength(0);
+  });
+
+  it("collapses a stranger's reply with no trust path", () => {
+    const reply = item("stranger", "2026-08-20T12:00:00Z", "reply-x");
+    const { normal, collapsed } = bucketReplies(V, "someone-else", [reply], graph);
+    expect(normal).toHaveLength(0);
+    expect(collapsed.map((r) => r.item.author)).toEqual(["stranger"]);
+  });
+
+  it("always shows the viewer's own reply and the post author's reply, even with no trust path", () => {
+    const own = item(V, "2026-08-20T12:00:00Z", "mine");
+    const authorReply = item("stranger-author", "2026-08-20T12:05:00Z", "author-reply");
+    const { normal, collapsed } = bucketReplies(V, "stranger-author", [own, authorReply], graph);
+    expect(normal.map((r) => r.item.author)).toEqual([V, "stranger-author"]);
+    expect(normal.find((r) => r.item.author === V)).toMatchObject({ own: true });
+    expect(collapsed).toHaveLength(0);
+  });
+
+  it("sorts each bucket chronologically ascending by created_at, not by trust", () => {
+    const items2 = [
+      item("A", "2026-08-20T14:00:00Z", "a-later"),
+      item("B", "2026-08-20T12:00:00Z", "b-earlier"),
+    ];
+    const { normal } = bucketReplies(V, "someone-else", items2, graph);
+    expect(normal.map((r) => String(r.item.record.body))).toEqual(["b-earlier", "a-later"]);
+  });
+
+  it("collapses a muted author's reply even though they're followed", () => {
+    const mutedGraph: GraphView = { ...graph, mutes: ["A"] };
+    const reply = item("A", "2026-08-20T12:00:00Z", "muted-reply");
+    const { normal, collapsed } = bucketReplies(V, "someone-else", [reply], mutedGraph);
+    expect(normal).toHaveLength(0);
+    expect(collapsed.map((r) => r.item.author)).toEqual(["A"]);
   });
 });

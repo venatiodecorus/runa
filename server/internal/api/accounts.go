@@ -110,6 +110,32 @@ func (s *server) handleCreateAccount(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"account": req.RootPub})
 }
 
+// authorBundle assembles the author-context object served alongside
+// records so a client can verify and render them without a separate
+// round-trip: device certs, revocations, and the author's latest profile
+// (verified client-side, never trusted server-side — docs/architecture.md
+// invariant 4). Used identically by /feed, /records/{id}, and
+// /records/{id}/replies.
+func (s *server) authorBundle(id string) (map[string]any, error) {
+	certs, err := s.st.RecordBodies(id, "device-cert")
+	if err != nil {
+		return nil, err
+	}
+	revocations, err := s.st.RecordBodies(id, "device-revoke")
+	if err != nil {
+		return nil, err
+	}
+	profile, err := s.st.LatestRecordBody(id, "profile")
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"device_certs":       rawList(certs),
+		"device_revocations": rawList(revocations),
+		"profile":            rawOrNull(profile),
+	}, nil
+}
+
 func (s *server) handleGetAccount(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	exists, err := s.st.AccountExists(id)
@@ -226,6 +252,28 @@ func (s *server) handleIngestRecord(w http.ResponseWriter, r *http.Request) {
 		if _, err := record.DecodeKey(subject); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_record", "subject: "+err.Error())
 			return
+		}
+	}
+	if typ == "post" {
+		if err := record.ValidatePost(rec); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_record", err.Error())
+			return
+		}
+		// reply_to may name any post — including one this instance has
+		// never seen (the parent may live off-instance, and existence is
+		// not required to reply). What is rejected is a reply_to that
+		// *does* resolve here but to a non-post: replies to tier-3 scoped
+		// posts are not supported (docs/protocol.md §5.1).
+		if replyTo, ok := rec.String("reply_to"); ok && replyTo != "" {
+			parent, err := s.st.GetRecord(replyTo)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "internal", err.Error())
+				return
+			}
+			if parent != nil && parent.Type != "post" {
+				writeError(w, http.StatusBadRequest, "invalid_record", "reply_to must reference a post")
+				return
+			}
 		}
 	}
 	if typ == "dm" && !s.validateDMIngest(w, rec) {
@@ -350,14 +398,18 @@ func recordRow(rec *record.Record) (store.RecordRow, error) {
 	if err != nil {
 		return store.RecordRow{}, err
 	}
-	return store.RecordRow{
+	row := store.RecordRow{
 		ID:        id,
 		Account:   rec.Author(),
 		Device:    rec.Device(),
 		Type:      rec.Type(),
 		CreatedAt: rec.CreatedAt(),
 		Body:      body,
-	}, nil
+	}
+	if rec.Type() == "post" {
+		row.ReplyTo, _ = rec.String("reply_to")
+	}
+	return row, nil
 }
 
 func rawOrNull(b []byte) any {

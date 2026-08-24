@@ -12,16 +12,26 @@
  * but never sufficient). Re-ranking treats them identically to tier-1 (trust
  * math is tier-blind, rankFeed never looks at `type`); this module only adds
  * decryption AFTER verification, via crypto/epochs.ts, plus a scope badge.
+ *
+ * Replies & threads (protocol §6): each item's reply_count and the
+ * `authors[].profile` bundle ride along in the same /feed response. A
+ * verified display name (authors.ts) is shown next to the identicon; a
+ * tier-1 post gets an inline reply composer and a "view thread" link.
  */
 import { useCallback, useEffect, useState } from "react";
 import { verifyAuthoredRecord, type ScopedPostRecord } from "@runa/core";
-import { fetchMeta, getFeed, getGraph2Hop, type FeedResponse } from "../api/client.js";
+import { fetchMeta, getFeed, getGraph2Hop, type FeedAuthor, type FeedResponse } from "../api/client.js";
 import { decryptScopedPosts, scopeLabel, type OpenScopedPostResult } from "../crypto/epochs.js";
 import { instanceConstants, rankFeed, type RankedFeed, type RankedItem } from "../feed/rank.js";
-import { shortId, styles } from "./theme.js";
+import { AccountLabel } from "./AccountLabel.js";
+import { ReplyComposer } from "./ReplyComposer.js";
+import { badgeStyle, styles } from "./theme.js";
+import { verifiedDisplayName } from "./authors.js";
 import type { Session } from "./session.js";
 
 interface FeedState {
+  /** Kept in full so cards can read authors[author] and item.reply_count. */
+  feed: FeedResponse;
   ranked: RankedFeed;
   /** Verification outcome per ranked-item id; null = verified OK. */
   errors: Map<string, string | null>;
@@ -32,7 +42,17 @@ interface FeedState {
   recomputeMs: number;
 }
 
-export function Feed({ session }: { session: Session }) {
+export function Feed({
+  session,
+  imageboard,
+  onOpenPost,
+  onViewAccount,
+}: {
+  session: Session;
+  imageboard: boolean;
+  onOpenPost: (id: string) => void;
+  onViewAccount: (id: string) => void;
+}) {
   const [state, setState] = useState<FeedState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -69,7 +89,7 @@ export function Feed({ session }: { session: Session }) {
       .map((r) => r.item.record as ScopedPostRecord);
     const opened = await decryptScopedPosts({ session, records: scopedRecords });
 
-    setState({ ranked, errors, opened, deviantKeys, sliceMs, recomputeMs });
+    setState({ feed, ranked, errors, opened, deviantKeys, sliceMs, recomputeMs });
   }, [session]);
 
   useEffect(() => {
@@ -80,8 +100,23 @@ export function Feed({ session }: { session: Session }) {
   if (error) return <p style={{ color: "crimson" }}>Could not load feed: {error}</p>;
   if (state === null) return <p style={styles.muted}>Loading feed…</p>;
 
-  const { ranked, errors, opened, deviantKeys, sliceMs, recomputeMs } = state;
+  const { feed, ranked, errors, opened, deviantKeys, sliceMs, recomputeMs } = state;
   const hidden = ranked.belowThreshold.length;
+
+  const card = (r: RankedItem) => (
+    <FeedCard
+      key={r.id}
+      item={r}
+      error={errors.get(r.id) ?? null}
+      opened={opened.get(r.id)}
+      authorBundle={feed.authors[r.item.author]}
+      imageboard={imageboard}
+      session={session}
+      onOpenPost={onOpenPost}
+      onViewAccount={onViewAccount}
+      onReplyPosted={() => load().catch((e) => setError(String(e)))}
+    />
+  );
 
   return (
     <section>
@@ -101,9 +136,7 @@ export function Feed({ session }: { session: Session }) {
           Nothing in your feed yet — follow an account (Profile tab → view an account id → Follow).
         </p>
       )}
-      {ranked.normal.map((r) => (
-        <FeedCard key={r.id} item={r} error={errors.get(r.id) ?? null} opened={opened.get(r.id)} />
-      ))}
+      {ranked.normal.map(card)}
 
       {hidden > 0 && (
         <div style={{ margin: "0.75rem 0" }}>
@@ -112,10 +145,7 @@ export function Feed({ session }: { session: Session }) {
               ? "Hide below-threshold posts"
               : `${hidden} more post${hidden === 1 ? "" : "s"} below your trust threshold`}
           </button>
-          {expanded &&
-            ranked.belowThreshold.map((r) => (
-              <FeedCard key={r.id} item={r} error={errors.get(r.id) ?? null} opened={opened.get(r.id)} />
-            ))}
+          {expanded && ranked.belowThreshold.map(card)}
         </div>
       )}
 
@@ -162,7 +192,32 @@ function AudienceBadge({ scoped, opened }: { scoped: boolean; opened?: OpenScope
   );
 }
 
-function FeedCard({ item, error, opened }: { item: RankedItem; error: string | null; opened?: OpenScopedPostResult }) {
+function replyCountLabel(n: number): string {
+  return `${n} repl${n === 1 ? "y" : "ies"} · view thread`;
+}
+
+function FeedCard({
+  item,
+  error,
+  opened,
+  authorBundle,
+  imageboard,
+  session,
+  onOpenPost,
+  onViewAccount,
+  onReplyPosted,
+}: {
+  item: RankedItem;
+  error: string | null;
+  opened?: OpenScopedPostResult;
+  authorBundle?: FeedAuthor;
+  imageboard: boolean;
+  session: Session;
+  onOpenPost: (id: string) => void;
+  onViewAccount: (id: string) => void;
+  onReplyPosted: () => void;
+}) {
+  const [replying, setReplying] = useState(false);
   const { record, author } = item.item;
   if (error !== null) {
     // Verification failed: visible placeholder, content never rendered.
@@ -175,6 +230,8 @@ function FeedCard({ item, error, opened }: { item: RankedItem; error: string | n
   }
 
   const scoped = record.type === "scoped-post";
+  const name = verifiedDisplayName(author, authorBundle, imageboard);
+
   if (scoped && (opened === undefined || !opened.ok)) {
     // Distinguished benign state ("no-key") vs. a hard decryption failure —
     // never render content in either case (§5.4 verify-then-decrypt-render).
@@ -198,13 +255,10 @@ function FeedCard({ item, error, opened }: { item: RankedItem; error: string | n
   const body = scoped && opened?.ok ? opened.body : String(record.body ?? "");
   return (
     <div style={styles.card}>
-      <div style={{ ...styles.muted, marginBottom: "0.35rem" }}>
-        <span style={styles.mono} title={author}>
-          {shortId(author)}
-        </span>
+      <div style={{ ...styles.muted, marginBottom: "0.35rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+        <AccountLabel id={author} name={name} onClick={() => onViewAccount(author)} />
         <span title="effective trust, recomputed locally from your 2-hop slice">
-          {" "}
-          · {item.own ? "you" : `trust ${trimTrust(item.trust)}`}
+          {item.own ? "you" : `trust ${trimTrust(item.trust)}`}
         </span>
         <AudienceBadge scoped={scoped} opened={opened} />
       </div>
@@ -213,21 +267,58 @@ function FeedCard({ item, error, opened }: { item: RankedItem; error: string | n
         {record.created_at}
         <span title="signature and device-cert chain verified by this client"> · verified ✓</span>
       </div>
+      {typeof record.reply_to === "string" && (
+        <div style={{ ...styles.muted, marginTop: "0.3rem" }}>
+          ↳ reply ·{" "}
+          <a
+            href="#"
+            title="open the thread this post replies into"
+            onClick={(e) => {
+              e.preventDefault();
+              onOpenPost(String(record.reply_to));
+            }}
+          >
+            view parent
+          </a>
+        </div>
+      )}
+      {!scoped && record.type === "post" && (
+        <div style={{ marginTop: "0.5rem" }}>
+          <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+            <button style={styles.button} onClick={() => setReplying((r) => !r)}>
+              {replying ? "Cancel reply" : "Reply"}
+            </button>
+            <a
+              href="#"
+              style={styles.muted}
+              onClick={(e) => {
+                e.preventDefault();
+                onOpenPost(item.id);
+              }}
+            >
+              {replyCountLabel(item.item.reply_count)}
+            </a>
+          </div>
+          {replying && (
+            <div style={{ marginTop: "0.5rem" }}>
+              <ReplyComposer
+                session={session}
+                parentId={item.id}
+                autoFocus
+                onCancel={() => setReplying(false)}
+                onPosted={() => {
+                  setReplying(false);
+                  onReplyPosted();
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 function trimTrust(t: number): string {
   return (Math.round(t * 100) / 100).toString();
-}
-
-function badgeStyle(color: string, background: string) {
-  return {
-    border: `1px solid ${color}`,
-    color,
-    background,
-    borderRadius: 6,
-    padding: "0.4rem 0.75rem",
-    fontSize: "0.85em",
-  } as const;
 }

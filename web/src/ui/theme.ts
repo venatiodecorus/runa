@@ -83,6 +83,18 @@ export function shortId(id: string): string {
   return `${id.slice(0, 8)}…${id.slice(-4)}`;
 }
 
+/** Inline notice badge (deviant-constants / divergence warnings). */
+export function badgeStyle(color: string, background: string): CSSProperties {
+  return {
+    border: `1px solid ${color}`,
+    color,
+    background,
+    borderRadius: 6,
+    padding: "0.4rem 0.75rem",
+    fontSize: "0.85em",
+  };
+}
+
 /** Trigger a client-side file download (used for the key file export). */
 export function downloadJson(filename: string, value: unknown): void {
   const blob = new Blob([JSON.stringify(value, null, 2) + "\n"], { type: "application/json" });

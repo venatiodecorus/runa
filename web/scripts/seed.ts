@@ -49,6 +49,8 @@ interface PersonaSpec {
 
 interface Fixture {
   personas: PersonaSpec[];
+  /** Replies to `to`'s Nth post (0-based), posted after all top-level posts. */
+  replies: Array<{ from: string; to: string; post: number; body: string }>;
   dms: Array<{ from: string; to: string; body: string }>;
 }
 
@@ -126,6 +128,8 @@ for (let i = 0; ; i++) {
   postSlots.push(...round);
 }
 let posted = 0;
+/** handle → record id of each top-level post, in fixture order (reply targets). */
+const postIds = new Map<string, string[]>();
 for (const p of personas) {
   await login(p);
   if (p.display_name !== "" || p.bio !== "") {
@@ -146,7 +150,7 @@ for (const p of personas) {
   }
   for (const [slot, entry] of postSlots.entries()) {
     if (entry.p !== p) continue;
-    await postRecord(
+    const { id } = await postRecord(
       signRecord(
         {
           v: 1,
@@ -159,10 +163,37 @@ for (const p of personas) {
         p.device.signSeed,
       ),
     );
+    postIds.set(p.handle, [...(postIds.get(p.handle) ?? []), id]);
     posted++;
   }
 }
 console.log(`posted profiles and ${posted} posts`);
+
+// 2b. Replies (protocol §6 "Replies & threads"): plain posts carrying
+//     `reply_to`, landing after every top-level post, a minute apart.
+for (const [i, reply] of (fixture.replies ?? []).entries()) {
+  const sender = resolve(reply.from);
+  const parentId = postIds.get(reply.to)?.[reply.post];
+  if (parentId === undefined) {
+    throw new Error(`replies[${i}]: ${reply.to} has no post #${reply.post}`);
+  }
+  await login(sender);
+  await postRecord(
+    signRecord(
+      {
+        v: 1,
+        type: "post",
+        author: sender.root.account,
+        device: sender.device.deviceId,
+        created_at: minutesAgo(fixture.replies.length - i),
+        body: reply.body,
+        reply_to: parentId,
+      },
+      sender.device.signSeed,
+    ),
+  );
+}
+console.log(`posted ${fixture.replies?.length ?? 0} replies`);
 
 // 3. Follow graph.
 let followed = 0;

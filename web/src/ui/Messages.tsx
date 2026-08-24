@@ -19,6 +19,7 @@ import {
   getBudget,
   getDmInbox,
   getDmWith,
+  getGraph2Hop,
   type BudgetInfo,
   type DmConversation,
 } from "../api/client.js";
@@ -38,6 +39,15 @@ import {
   partitionRequests,
   restoreRequest,
 } from "../dm/requests.js";
+import {
+  looksLikeAccountId,
+  mergeContacts,
+  rankContacts,
+  type Contact,
+} from "../dm/search.js";
+import { AccountLabel } from "./AccountLabel.js";
+import { Identicon } from "./Identicon.js";
+import { verifiedDisplayName } from "./authors.js";
 import { shortId, styles } from "./theme.js";
 import type { Session } from "./session.js";
 
@@ -80,15 +90,210 @@ function BudgetMeter({ budget }: { budget: BudgetInfo | null }) {
   );
 }
 
+// --- verified-name cache --------------------------------------------------
+
+/**
+ * Shared cache of verified display names, keyed by account id (authors.ts:
+ * a display name only ever renders if its profile record verified). Fed by
+ * ContactSearch, conversation rows, and the thread header — everyone reads
+ * the same cache so a name is fetched once per account per session.
+ */
+function useVerifiedNames(imageboard: boolean): {
+  names: Record<string, string | null>;
+  ensureNames: (ids: string[]) => void;
+} {
+  const [names, setNames] = useState<Record<string, string | null>>({});
+  const namesRef = useRef<Record<string, string | null>>({});
+  namesRef.current = names;
+  const pendingRef = useRef<Set<string>>(new Set());
+
+  const ensureNames = useCallback(
+    (ids: string[]) => {
+      const toFetch = ids.filter((id) => !(id in namesRef.current) && !pendingRef.current.has(id));
+      if (toFetch.length === 0) return;
+      for (const id of toFetch) pendingRef.current.add(id);
+      Promise.allSettled(toFetch.map((id) => getAccount(id))).then((results) => {
+        setNames((prev) => {
+          const next = { ...prev };
+          results.forEach((res, i) => {
+            const id = toFetch[i]!;
+            pendingRef.current.delete(id);
+            next[id] = res.status === "fulfilled" ? verifiedDisplayName(id, res.value, imageboard) : null;
+          });
+          return next;
+        });
+      });
+    },
+    [imageboard],
+  );
+
+  return { names, ensureNames };
+}
+
+// --- contact search ---------------------------------------------------------
+
+/**
+ * Replaces the bare "paste an account id" input: fuzzy-searches follows +
+ * existing conversation partners (dm/search.ts), falling back to a raw
+ * account id for a brand-new contact.
+ */
+function ContactSearch({
+  session,
+  conversations,
+  names,
+  ensureNames,
+  onPick,
+}: {
+  session: Session;
+  conversations: DmConversation[];
+  names: Record<string, string | null>;
+  ensureNames: (ids: string[]) => void;
+  onPick: (id: string) => void;
+}) {
+  const [follows, setFollows] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
+  const [highlighted, setHighlighted] = useState(0);
+
+  useEffect(() => {
+    getGraph2Hop().then(
+      (g) => setFollows(g.follows[session.root.account] ?? []),
+      () => setFollows([]),
+    );
+  }, [session.root.account]);
+
+  const conversationIds = conversations.map((c) => c.with);
+  const conversationIdsKey = conversationIds.join(",");
+  const contactIds = useMemo(
+    () => Array.from(new Set([...follows, ...conversationIds])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [follows, conversationIdsKey],
+  );
+
+  useEffect(() => {
+    ensureNames(contactIds);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contactIds.join(","), ensureNames]);
+
+  const contacts = useMemo(
+    () => mergeContacts(follows, conversationIds, names),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [follows, conversationIdsKey, names],
+  );
+
+  const trimmed = query.trim();
+  const rows = focused ? rankContacts(trimmed, contacts) : [];
+  const looksLikeId = looksLikeAccountId(trimmed);
+
+  useEffect(() => {
+    setHighlighted(0);
+  }, [query]);
+
+  const pick = (id: string) => {
+    setQuery("");
+    setFocused(false);
+    onPick(id);
+  };
+
+  const submit = () => {
+    if (rows.length > 0) pick(rows[Math.min(highlighted, rows.length - 1)]!.id);
+    else if (looksLikeId) pick(trimmed);
+  };
+
+  return (
+    <div style={{ position: "relative", marginBottom: "1rem" }}>
+      <div style={{ display: "flex", gap: "0.5rem" }}>
+        <input
+          style={styles.input}
+          placeholder="Search people you follow, or paste an account id…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 150)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setHighlighted((h) => Math.min(h + 1, Math.max(rows.length - 1, 0)));
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setHighlighted((h) => Math.max(h - 1, 0));
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+              submit();
+            } else if (e.key === "Escape") {
+              setFocused(false);
+            }
+          }}
+        />
+        <button style={styles.primaryButton} onClick={submit} disabled={!looksLikeId && rows.length === 0}>
+          New message
+        </button>
+      </div>
+      {focused && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 0.25rem)",
+            left: 0,
+            right: 0,
+            zIndex: 10,
+            background: "#fff",
+            border: "1px solid #ccc",
+            borderRadius: 8,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            maxHeight: 280,
+            overflowY: "auto",
+          }}
+        >
+          {rows.map((c, i) => (
+            <div
+              key={c.id}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                pick(c.id);
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                padding: "0.5rem 0.75rem",
+                cursor: "pointer",
+                background: i === highlighted ? "#eef5fc" : "transparent",
+              }}
+            >
+              <Identicon id={c.id} size={20} />
+              {c.displayName && <strong>{c.displayName}</strong>}
+              <span style={{ ...styles.mono, ...styles.muted }}>{shortId(c.id)}</span>
+              <span style={{ flex: 1 }} />
+              <span style={styles.muted}>{sourceLabel(c.source)}</span>
+            </div>
+          ))}
+          {rows.length === 0 && trimmed.length > 0 && !looksLikeId && (
+            <p style={{ ...styles.muted, padding: "0.5rem 0.75rem", margin: 0 }}>
+              No matches — paste a full account id to message someone new.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function sourceLabel(source: Contact["source"]): string {
+  if (source === "both") return "following · conversation";
+  if (source === "follow") return "following";
+  return "conversation";
+}
+
 // --- inbox --------------------------------------------------------------------
 
-export function Messages({ session }: { session: Session }) {
+export function Messages({ session, imageboard }: { session: Session; imageboard: boolean }) {
   const [conversations, setConversations] = useState<DmConversation[] | null>(null);
   const [inboxError, setInboxError] = useState<string | null>(null);
   const [openWith, setOpenWith] = useState<{ id: string; focusCompose: boolean } | null>(null);
-  const [newTo, setNewTo] = useState("");
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
   const [showDismissed, setShowDismissed] = useState(false);
+  const { names, ensureNames } = useVerifiedNames(imageboard);
 
   const loadInbox = useCallback(async () => {
     const res = await getDmInbox();
@@ -105,11 +310,17 @@ export function Messages({ session }: { session: Session }) {
     return () => clearInterval(timer);
   }, [loadInbox]);
 
+  useEffect(() => {
+    if (conversations) ensureNames(conversations.map((c) => c.with));
+  }, [conversations, ensureNames]);
+
   if (openWith !== null) {
     return (
       <Thread
         session={session}
         withId={openWith.id}
+        name={names[openWith.id] ?? null}
+        ensureNames={ensureNames}
         focusCompose={openWith.focusCompose}
         onBack={() => setOpenWith(null)}
         onActivity={() => loadInbox().catch(() => {})}
@@ -120,14 +331,6 @@ export function Messages({ session }: { session: Session }) {
   const normal = (conversations ?? []).filter((c) => !c.request);
   const requests = (conversations ?? []).filter((c) => c.request);
   const tray = partitionRequests(requests, dismissed);
-
-  const openNew = () => {
-    const id = newTo.trim();
-    if (id.length > 0) {
-      setNewTo("");
-      setOpenWith({ id, focusCompose: true });
-    }
-  };
 
   const dismiss = (id: string) => {
     dismissRequest(id)
@@ -149,20 +352,13 @@ export function Messages({ session }: { session: Session }) {
 
   return (
     <section>
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-        <input
-          style={styles.input}
-          placeholder="Account id to message…"
-          value={newTo}
-          onChange={(e) => setNewTo(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") openNew();
-          }}
-        />
-        <button style={styles.primaryButton} onClick={openNew} disabled={newTo.trim().length === 0}>
-          New message
-        </button>
-      </div>
+      <ContactSearch
+        session={session}
+        conversations={conversations ?? []}
+        names={names}
+        ensureNames={ensureNames}
+        onPick={(id) => setOpenWith({ id, focusCompose: true })}
+      />
 
       {inboxError && <p style={{ color: "crimson" }}>Could not load conversations: {inboxError}</p>}
       {conversations === null && !inboxError && <p style={styles.muted}>Loading conversations…</p>}
@@ -175,6 +371,7 @@ export function Messages({ session }: { session: Session }) {
         <ConversationRow
           key={c.with}
           conv={c}
+          name={names[c.with] ?? null}
           onOpen={() => setOpenWith({ id: c.with, focusCompose: false })}
         />
       ))}
@@ -192,6 +389,7 @@ export function Messages({ session }: { session: Session }) {
             <ConversationRow
               key={c.with}
               conv={c}
+              name={names[c.with] ?? null}
               onOpen={() => setOpenWith({ id: c.with, focusCompose: false })}
               actions={
                 <>
@@ -228,6 +426,7 @@ export function Messages({ session }: { session: Session }) {
               <ConversationRow
                 key={c.with}
                 conv={c}
+                name={names[c.with] ?? null}
                 onOpen={() => setOpenWith({ id: c.with, focusCompose: false })}
                 actions={
                   <button style={styles.button} onClick={() => restore(c.with)}>
@@ -244,10 +443,12 @@ export function Messages({ session }: { session: Session }) {
 
 function ConversationRow({
   conv,
+  name,
   onOpen,
   actions,
 }: {
   conv: DmConversation;
+  name: string | null;
   onOpen: () => void;
   actions?: React.ReactNode;
 }) {
@@ -259,7 +460,7 @@ function ConversationRow({
       title={conv.with}
     >
       <div style={{ display: "flex", gap: "0.75rem", alignItems: "baseline" }}>
-        <span style={styles.mono}>{shortId(conv.with)}</span>
+        <AccountLabel id={conv.with} name={name} size={20} />
         <span style={styles.muted}>🔒 encrypted</span>
         <span style={{ flex: 1 }} />
         <span style={styles.muted}>{conv.last?.created_at ?? ""}</span>
@@ -289,12 +490,16 @@ interface ThreadState {
 function Thread({
   session,
   withId,
+  name,
+  ensureNames,
   focusCompose,
   onBack,
   onActivity,
 }: {
   session: Session;
   withId: string;
+  name: string | null;
+  ensureNames: (ids: string[]) => void;
   focusCompose: boolean;
   onBack: () => void;
   onActivity: () => void;
@@ -310,6 +515,13 @@ function Thread({
   const initialCursorSet = useRef(false);
   const composeRef = useRef<HTMLTextAreaElement | null>(null);
   const { budget, refreshBudget } = useBudget();
+
+  useEffect(() => {
+    // A brand-new contact reached via a raw account id may not be covered by
+    // the inbox-driven ensureNames call yet — make sure the header can show
+    // a verified name as soon as one is available.
+    ensureNames([withId]);
+  }, [withId, ensureNames]);
 
   useEffect(() => {
     if (focusCompose) composeRef.current?.focus();
@@ -398,9 +610,7 @@ function Thread({
         <button style={styles.button} onClick={onBack}>
           ← Back
         </button>
-        <span style={styles.mono} title={withId}>
-          {shortId(withId)}
-        </span>
+        <AccountLabel id={withId} name={name} size={20} />
       </header>
       <p style={{ ...styles.muted, marginBottom: "1rem" }} title="tier-2 envelope: sealed to every certified device of both participants">
         🔒 End-to-end encrypted — the server stores only ciphertext.
@@ -491,7 +701,8 @@ function MessageCard({
   }
   return (
     <div style={{ ...styles.card, ...(own ? { background: "#f0f6ff" } : {}) }}>
-      <div style={{ ...styles.muted, marginBottom: "0.35rem" }}>
+      <div style={{ ...styles.muted, marginBottom: "0.35rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+        {!own && <Identicon id={record.author} size={16} />}
         <span style={styles.mono} title={record.author}>
           {own ? "you" : shortId(record.author)}
         </span>

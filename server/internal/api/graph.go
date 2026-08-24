@@ -171,9 +171,26 @@ type feedItem struct {
 	Record         json.RawMessage `json:"record"`
 	Author         string          `json:"author"`
 	CandidateTrust float64         `json:"candidate_trust"`
+	ReplyCount     int             `json:"reply_count"`
 
 	createdAt string
 	id        string
+}
+
+// candidateTrust returns the viewer's proposed trust in author, the same
+// value /feed ranks by: 0 for an anonymous viewer, for an author viewing
+// their own record (SubjectiveTrust has no self-trust), or when no trust
+// path exists. It is a proposal only — clients recompute from /graph/2hop
+// and /meta before rendering anything as trusted.
+func (s *server) candidateTrust(viewer, author string) (float64, error) {
+	if viewer == "" || viewer == author {
+		return 0, nil
+	}
+	gv, err := s.graphView(viewer)
+	if err != nil {
+		return 0, err
+	}
+	return trust.SubjectiveTrust(viewer, author, gv, trust.DefaultParams), nil
 }
 
 // handleFeed serves the candidate feed: post records from every account
@@ -220,10 +237,16 @@ func (s *server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		}
 		rows = append(rows, scoped...)
 		for _, row := range rows {
+			replyCount, err := s.st.ReplyCount(row.ID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "internal", err.Error())
+				return
+			}
 			items = append(items, feedItem{
 				Record:         json.RawMessage(row.Body),
 				Author:         author,
 				CandidateTrust: tr,
+				ReplyCount:     replyCount,
 				createdAt:      row.CreatedAt,
 				id:             row.ID,
 			})
@@ -246,20 +269,12 @@ func (s *server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		if _, done := authors[it.Author]; done {
 			continue
 		}
-		certs, err := s.st.RecordBodies(it.Author, "device-cert")
+		bundle, err := s.authorBundle(it.Author)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "internal", err.Error())
 			return
 		}
-		revocations, err := s.st.RecordBodies(it.Author, "device-revoke")
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "internal", err.Error())
-			return
-		}
-		authors[it.Author] = map[string]any{
-			"device_certs":       rawList(certs),
-			"device_revocations": rawList(revocations),
-		}
+		authors[it.Author] = bundle
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"items":   items,

@@ -13,10 +13,20 @@ import { Feed } from "./Feed.js";
 import { Messages } from "./Messages.js";
 import { Devices } from "./Devices.js";
 import { Profile } from "./Profile.js";
+import { PostPage } from "./PostPage.js";
+import { Identicon } from "./Identicon.js";
 import { shortId, styles } from "./theme.js";
 
 type AnonRoute = "signup" | "recover";
-type UserRoute = "feed" | "messages" | "posts" | "devices" | "profile";
+type UserRoute =
+  | { kind: "feed" }
+  | { kind: "messages" }
+  | { kind: "posts" }
+  | { kind: "devices" }
+  | { kind: "profile"; account: string }
+  /** `back` = the route the thread was opened from, so ← Back returns there
+   *  (threads opened from a thread chain naturally, like a stack). */
+  | { kind: "post"; id: string; back: UserRoute };
 
 export function App() {
   const [meta, setMeta] = useState<InstanceMeta | null>(null);
@@ -25,7 +35,7 @@ export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [anonRoute, setAnonRoute] = useState<AnonRoute>("signup");
-  const [userRoute, setUserRoute] = useState<UserRoute>("feed");
+  const [route, setRoute] = useState<UserRoute>({ kind: "feed" });
 
   useEffect(() => {
     fetchMeta().then(setMeta, (e) => setMetaError(String(e)));
@@ -50,6 +60,14 @@ export function App() {
     setAnonRoute("recover");
   };
 
+  const openPost = (id: string) =>
+    setRoute((prev) =>
+      // Re-opening the thread already on screen must not push it onto its own
+      // back-chain — ← Back would then appear to do nothing.
+      prev.kind === "post" && prev.id === id ? prev : { kind: "post", id, back: prev },
+    );
+  const viewAccount = (account: string) => setRoute({ kind: "profile", account });
+
   const navButton = (label: string, active: boolean, onClick: () => void) => (
     <button
       onClick={onClick}
@@ -61,6 +79,8 @@ export function App() {
       {label}
     </button>
   );
+
+  const imageboard = meta?.imageboard_mode === true;
 
   return (
     <main style={{ fontFamily: "system-ui", maxWidth: 640, margin: "2rem auto", padding: "0 1rem" }}>
@@ -100,13 +120,17 @@ export function App() {
               alignItems: "center",
             }}
           >
-            {navButton("Feed", userRoute === "feed", () => setUserRoute("feed"))}
-            {navButton("Messages", userRoute === "messages", () => setUserRoute("messages"))}
-            {navButton("My posts", userRoute === "posts", () => setUserRoute("posts"))}
-            {navButton("Devices", userRoute === "devices", () => setUserRoute("devices"))}
-            {navButton("Profile", userRoute === "profile", () => setUserRoute("profile"))}
+            {navButton("Feed", route.kind === "feed", () => setRoute({ kind: "feed" }))}
+            {navButton("Messages", route.kind === "messages", () => setRoute({ kind: "messages" }))}
+            {navButton("My posts", route.kind === "posts", () => setRoute({ kind: "posts" }))}
+            {navButton("Devices", route.kind === "devices", () => setRoute({ kind: "devices" }))}
+            {navButton("Profile", route.kind === "profile", () => viewAccount(session.root.account))}
             <span style={{ flex: 1 }} />
-            <span style={{ ...styles.mono, ...styles.muted }} title={session.root.account}>
+            <span
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", ...styles.mono, ...styles.muted }}
+              title={session.root.account}
+            >
+              <Identicon id={session.root.account} size={20} />
               {shortId(session.root.account)}
             </span>
             <button style={styles.button} onClick={logout} title="Wipes keys from this browser — your recovery kit stays valid">
@@ -119,15 +143,32 @@ export function App() {
               reachable again.
             </p>
           )}
-          {userRoute === "feed" && <Feed session={session} />}
-          {userRoute === "messages" && <Messages session={session} />}
-          {userRoute === "posts" && <Home session={session} />}
-          {userRoute === "devices" && <Devices session={session} />}
-          {userRoute === "profile" && (
+          {route.kind === "feed" && (
+            <Feed session={session} imageboard={imageboard} onOpenPost={openPost} onViewAccount={viewAccount} />
+          )}
+          {route.kind === "messages" && <Messages session={session} imageboard={imageboard} />}
+          {route.kind === "posts" && (
+            <Home session={session} imageboard={imageboard} onOpenPost={openPost} />
+          )}
+          {route.kind === "devices" && <Devices session={session} />}
+          {route.kind === "profile" && (
             <Profile
+              key={route.account}
               session={session}
-              account={session.root.account}
-              imageboard={meta?.imageboard_mode === true}
+              account={route.account}
+              imageboard={imageboard}
+              onOpenPost={openPost}
+            />
+          )}
+          {route.kind === "post" && (
+            <PostPage
+              key={route.id}
+              session={session}
+              id={route.id}
+              imageboard={imageboard}
+              onBack={() => setRoute(route.back)}
+              onOpenPost={openPost}
+              onViewAccount={viewAccount}
             />
           )}
         </>
