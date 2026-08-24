@@ -16,6 +16,19 @@ const tiny: ScenarioSpec = {
   ],
 };
 
+const withReporters: ScenarioSpec = {
+  name: "with-reporters",
+  seed: 99,
+  graphModel: "random",
+  days: 10,
+  cohorts: [
+    { name: "core", kind: "honest", count: 200, meanFollows: 10, coldPerDay: 0.2 },
+    { name: "target", kind: "honest", count: 1, meanFollows: 10 },
+    { name: "brigade", kind: "reporter-brigade", count: 40, bridges: 4, reports: { target: "target" } },
+    { name: "diverse", kind: "reporter-diverse", count: 5, targetFollowers: 6, reports: { target: "target" } },
+  ],
+};
+
 describe("determinism", () => {
   it("same seed → identical run; different seed → different population", () => {
     const a = runScenario(tiny);
@@ -60,6 +73,45 @@ describe("population shapes", () => {
       bridges += pop.follows[a]!.filter((t) => pop.kindOf[t] === "sybil-ring").length;
     }
     expect(bridges).toBe(2);
+  });
+});
+
+describe("M7 reporting cohorts (trust-and-reach §4)", () => {
+  const pop = generatePopulation(withReporters);
+  const target = "target-0000";
+
+  it("reporter-brigade is internally dense, same shape as sybil-ring", () => {
+    const brigade = pop.accounts.filter((a) => pop.kindOf[a] === "reporter-brigade");
+    expect(brigade.length).toBe(40);
+    for (const a of brigade) expect(pop.follows[a]!.length).toBeGreaterThanOrEqual(20);
+  });
+
+  it("reporter-diverse members never follow each other and each get their own honest followers", () => {
+    const diverse = pop.accounts.filter((a) => pop.kindOf[a] === "reporter-diverse");
+    expect(diverse.length).toBe(5);
+    for (const a of diverse) {
+      expect(pop.follows[a]).toEqual([]); // no outbound follows at all
+      let followers = 0;
+      for (const other of pop.accounts) if (pop.follows[other]!.includes(a)) followers++;
+      expect(followers).toBe(6); // targetFollowers, exact distinct picks
+    }
+  });
+
+  it("reportsOf resolves the named target to its cohort's first account", () => {
+    expect(pop.reportsOf[target]).toBeDefined();
+    const reporters = new Set(pop.reportsOf[target]);
+    expect(reporters.size).toBe(45); // 40 brigade + 5 diverse, fraction defaults to 1 (all)
+    for (const a of pop.reportsOf[target]!) {
+      expect(pop.kindOf[a] === "reporter-brigade" || pop.kindOf[a] === "reporter-diverse").toBe(true);
+    }
+  });
+
+  it("reporter-brigade is excluded from good-faith ceiling accounting, like sybil-ring", () => {
+    // No coldPerDay set on brigade/diverse, so this is really asserting the
+    // exclusion doesn't throw and the good-faith count matches the honest
+    // cohorts (core + target + diverse), not brigade.
+    const result = runScenario(withReporters);
+    expect(result.ceiling.goodFaithCount).toBe(200 + 1 + 5);
   });
 });
 

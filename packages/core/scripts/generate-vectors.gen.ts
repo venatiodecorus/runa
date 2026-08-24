@@ -4,7 +4,7 @@
  *
  * Vectors are generated from one implementation and verified by both (the Go
  * suite consumes the same files), plus reviewed by hand — a format change
- * without a vector change is rejected in review (protocol §9).
+ * without a vector change is rejected in review (protocol §10).
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -15,7 +15,7 @@ import { hexToBytes, bytesToHex } from "@noble/hashes/utils";
 import { CONSTANTS } from "../src/constants.js";
 import { b64url } from "../src/encoding.js";
 import { canonicalize } from "../src/jcs.js";
-import { signRecord, signingBytes } from "../src/records.js";
+import { signRecord, signingBytes, recordId } from "../src/records.js";
 import { subjectiveTrust } from "../src/trust.js";
 import { dailyBudget, isColdInitiation } from "../src/budgets.js";
 import { sealDm, openDm } from "../src/envelope.js";
@@ -38,6 +38,15 @@ import {
   openScopedPost,
   enumerateScope,
 } from "../src/epochs.js";
+import { verifyReport, type ReportRecord } from "../src/report.js";
+import {
+  decayPenalty,
+  reporterWeight,
+  clusterReporters,
+  reportMass,
+  autoPenalty,
+  standingFrom,
+} from "../src/standing.js";
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), "../../../docs/protocol/vectors");
 
@@ -561,6 +570,275 @@ it("regenerates protocol vectors", () => {
         { account_id: attesterRoot, sha256_hex: bytesToHex(fingerprint(attesterRoot)) },
         { account_id: subjectRoot, sha256_hex: bytesToHex(fingerprint(subjectRoot)) },
       ],
+    });
+  }
+
+  // --- report-01: report records (protocol §9.1) --------------------------
+  {
+    const reporterRootPriv = hexToBytes(ROOT_SEED);
+    const reporterDevicePriv = hexToBytes(DEVICE_SEED);
+    const reporterRoot = b64url.encode(ed25519.getPublicKey(reporterRootPriv));
+    const reporterDevice = b64url.encode(ed25519.getPublicKey(reporterDevicePriv));
+    const subjectSeed = "55".repeat(32);
+    const subjectRoot = b64url.encode(ed25519.getPublicKey(hexToBytes(subjectSeed)));
+
+    const reporterCert = signRecord(
+      {
+        v: 1, type: "device-cert", author: reporterRoot, created_at: T0,
+        device_sign_pub: reporterDevice,
+        device_kex_pub: b64url.encode(x25519.getPublicKey(hexToBytes(KEX_SEED))),
+      },
+      reporterRootPriv,
+    );
+
+    // A plausible reported record: any signed record, referenced by its
+    // content-addressed id (§3) — the report only needs the id to look right,
+    // not for the record to actually exist on some instance.
+    const reportedPost = signRecord(
+      { v: 1, type: "post", author: subjectRoot, device: subjectRoot, created_at: T0, body: "reported content" },
+      hexToBytes(subjectSeed),
+    );
+    const reportedRecordId = recordId(reportedPost);
+
+    const reportNoRecord = signRecord(
+      {
+        v: 1, type: "report", author: reporterRoot, device: reporterDevice,
+        created_at: "2026-08-24T12:00:00Z",
+        subject: subjectRoot, reason: "spam", comment: "posting the same link repeatedly",
+      },
+      reporterDevicePriv,
+    ) as ReportRecord;
+    const reportWithRecord = signRecord(
+      {
+        v: 1, type: "report", author: reporterRoot, device: reporterDevice,
+        created_at: "2026-08-24T12:05:00Z",
+        subject: subjectRoot, record: reportedRecordId, reason: "harassment",
+      },
+      reporterDevicePriv,
+    ) as ReportRecord;
+    const reportWithPlaintext = signRecord(
+      {
+        v: 1, type: "report", author: reporterRoot, device: reporterDevice,
+        created_at: "2026-08-24T12:10:00Z",
+        subject: subjectRoot, record: reportedRecordId, reason: "illegal",
+        plaintext: "the forwarded message body",
+      },
+      reporterDevicePriv,
+    ) as ReportRecord;
+    const reportUnknownReason = signRecord(
+      {
+        v: 1, type: "report", author: reporterRoot, device: reporterDevice,
+        created_at: "2026-08-24T12:15:00Z",
+        subject: subjectRoot, reason: "abuse",
+      },
+      reporterDevicePriv,
+    ) as unknown as ReportRecord;
+    const reportSelf = signRecord(
+      {
+        v: 1, type: "report", author: reporterRoot, device: reporterDevice,
+        created_at: "2026-08-24T12:20:00Z",
+        subject: reporterRoot, reason: "spam",
+      },
+      reporterDevicePriv,
+    ) as ReportRecord;
+    const longComment = "x".repeat(1001);
+    const reportLongComment = signRecord(
+      {
+        v: 1, type: "report", author: reporterRoot, device: reporterDevice,
+        created_at: "2026-08-24T12:25:00Z",
+        subject: subjectRoot, reason: "other", comment: longComment,
+      },
+      reporterDevicePriv,
+    ) as ReportRecord;
+
+    // Self-checks: reference impl agrees with the intended validity of each case.
+    verifyReport(reportNoRecord);
+    verifyReport(reportWithRecord);
+    verifyReport(reportWithPlaintext);
+    for (const [name, fn] of [
+      ["unknown reason", () => verifyReport(reportUnknownReason)],
+      ["self-report", () => verifyReport(reportSelf)],
+      ["over-long comment", () => verifyReport(reportLongComment)],
+      ["tampered sig", () => verifyReport({ ...reportNoRecord, reason: "harassment" })],
+    ] as const) {
+      let threw = false;
+      try { fn(); } catch { threw = true; }
+      if (!threw) throw new Error(`report self-check failed: ${name} should be invalid`);
+    }
+
+    write("report-01.json", {
+      description:
+        "Report records (protocol §9.1). Keys from the given hex seeds (test keys only); `certs` is context " +
+        "for chain verification. `reported_record` / `reported_record_id` are a plausible referenced record and " +
+        "its content-addressed id, not proof it exists on any instance. The plaintext case is shape-valid only — " +
+        "recipiency proof (§9.2: the record must name the reporter as recipient/epoch-member) and the " +
+        "record-must-be-a-dm-or-scoped-post rule are server-contextual ingest checks, not validated by " +
+        "validateReport/verifyReport.",
+        seeds: { reporter_root_ed25519: ROOT_SEED, reporter_device_ed25519: DEVICE_SEED, subject_root_ed25519: subjectSeed },
+        keys: { reporter_account_id: reporterRoot, reporter_device_id: reporterDevice, subject_account_id: subjectRoot },
+        certs: [reporterCert],
+        reported_record: reportedPost,
+        reported_record_id: reportedRecordId,
+      cases: [
+        { name: "valid report without record (spam, with comment)", record: reportNoRecord, valid: true, check: "chain" },
+        { name: "valid report with record (harassment)", record: reportWithRecord, valid: true, check: "chain" },
+        { name: "valid report with plaintext (shape-valid; recipiency is server-contextual)", record: reportWithPlaintext, valid: true, check: "chain" },
+        { name: "unknown reason", record: reportUnknownReason, valid: false, check: "type", reason: "reason must be spam | harassment | illegal | other" },
+        { name: "self-report", record: reportSelf, valid: false, check: "type", reason: "author == subject is rejected (§9.1)" },
+        { name: "comment longer than 1000 chars", record: reportLongComment, valid: false, check: "type", reason: "comment must be ≤ REPORT_COMMENT_MAX chars" },
+        { name: "tampered sig", record: { ...reportNoRecord, reason: "harassment" }, valid: false, check: "signature", reason: "signature must fail after tamper" },
+      ],
+    });
+  }
+
+  // --- standing-01: standing math (trust-and-reach §4) ---------------------
+  {
+    // decay: p_adj(t) = p0 * 2^(-Δt/half-life), clamped p0 into [0,1], negative Δt -> 0.
+    const decayCases = [
+      { p0: 0.6, elapsed_days: 30, half_life_days: 30 },
+      { p0: 0.6, elapsed_days: 0, half_life_days: 30 },
+      { p0: 0.6, elapsed_days: 60, half_life_days: 30 },
+      { p0: 1, elapsed_days: 90, half_life_days: 30 },
+      { p0: 0.6, elapsed_days: -5, half_life_days: 30 },
+    ].map((c) => ({ ...c, expected: decayPenalty(c.p0, c.elapsed_days, c.half_life_days) }));
+
+    // reporter_weights: w(R) = (1 - p_adj) * ln(1 + inbound_trust).
+    const reporterWeightCases = [
+      { adj_penalty: 0, inbound_trust: 10 },
+      { adj_penalty: 0.2, inbound_trust: 10 },
+      { adj_penalty: 1, inbound_trust: 50 },
+      { adj_penalty: 0, inbound_trust: 0 },
+    ].map((c) => ({ ...c, expected: reporterWeight(c.adj_penalty, c.inbound_trust) }));
+
+    // clustering fixture (trust-and-reach §4): direct-follow link, jaccard-only
+    // link, an isolated reporter, and two empty-follow-set reporters that must
+    // NOT link (Jaccard(∅,∅) = 0 by convention, never 1).
+    const clusterFollows: Record<string, readonly string[]> = {
+      R1: ["R2"], // direct follow -> links R1, R2
+      R2: [],
+      R3: ["X", "Y", "Z"],
+      R4: ["X", "Y", "W"], // jaccard(R3,R4) = 2/4 = 0.5 >= 0.3 -> links R3, R4
+      R5: ["Q"], // isolated: shares no follow with anyone else, follows no one else
+      R6: [], // empty set...
+      R7: [], // ...and so is R7's, but Jaccard(∅,∅) = 0: must NOT link
+    };
+    const reporters = ["R1", "R2", "R3", "R4", "R5", "R6", "R7"];
+    const clusters = clusterReporters(reporters, clusterFollows);
+    const expectedClusters = [["R1", "R2"], ["R3", "R4"], ["R5"], ["R6"], ["R7"]];
+    if (JSON.stringify(clusters) !== JSON.stringify(expectedClusters)) {
+      throw new Error(`standing self-check failed: clustering = ${JSON.stringify(clusters)}`);
+    }
+
+    const clusterWeightInputs: Record<string, { adj_penalty: number; inbound_trust: number }> = {
+      R1: { adj_penalty: 0, inbound_trust: 10 },
+      R2: { adj_penalty: 0.2, inbound_trust: 5 },
+      R3: { adj_penalty: 0, inbound_trust: 20 },
+      R4: { adj_penalty: 0.5, inbound_trust: 8 },
+      R5: { adj_penalty: 0, inbound_trust: 2 },
+      R6: { adj_penalty: 0, inbound_trust: 0 },
+      R7: { adj_penalty: 1, inbound_trust: 50 },
+    };
+    const clusterWeights: Record<string, number> = {};
+    for (const r of reporters) {
+      const { adj_penalty, inbound_trust } = clusterWeightInputs[r]!;
+      clusterWeights[r] = reporterWeight(adj_penalty, inbound_trust);
+    }
+    const clusterMass = reportMass(clusters, clusterWeights);
+    const clusterPAuto = autoPenalty(clusterMass);
+    const standingCases = [0, 0.6, 1.0].map((p_adj) => ({
+      p_auto: clusterPAuto,
+      p_adj,
+      expected: standingFrom(clusterPAuto, p_adj),
+    }));
+
+    // end-to-end (a): 5 unconnected reporters, weight ~2.4 each (adj_penalty=0,
+    // inbound_trust=12 -> ln(13) ≈ 2.565), mass pushes p_auto to the cap.
+    const massReporters = ["E1", "E2", "E3", "E4", "E5"];
+    const massFollows: Record<string, readonly string[]> = {}; // all empty, all isolated (Jaccard(∅,∅)=0)
+    const massClusters = clusterReporters(massReporters, massFollows);
+    if (massClusters.length !== 5) throw new Error("standing self-check failed: expected 5 unconnected reporters");
+    const massWeights: Record<string, number> = {};
+    for (const r of massReporters) massWeights[r] = reporterWeight(0, 12);
+    const mass = reportMass(massClusters, massWeights);
+    const pAutoCapped = autoPenalty(mass);
+    if (pAutoCapped !== CONSTANTS.report_auto_cap) {
+      throw new Error(`standing self-check failed: expected p_auto to hit the cap, got ${pAutoCapped}`);
+    }
+
+    // end-to-end (b): a 6-member tight cluster, all following each other —
+    // mass = the cluster's single max weight, volume inside adds nothing.
+    const tightMembers = ["T1", "T2", "T3", "T4", "T5", "T6"];
+    const tightFollows: Record<string, readonly string[]> = Object.fromEntries(
+      tightMembers.map((m) => [m, tightMembers.filter((other) => other !== m)]),
+    );
+    const tightClusters = clusterReporters(tightMembers, tightFollows);
+    if (tightClusters.length !== 1 || tightClusters[0]!.length !== 6) {
+      throw new Error("standing self-check failed: expected one 6-member cluster");
+    }
+    const tightWeightInputs: Record<string, { adj_penalty: number; inbound_trust: number }> = {
+      T1: { adj_penalty: 0, inbound_trust: 1 },
+      T2: { adj_penalty: 0, inbound_trust: 3 },
+      T3: { adj_penalty: 0.1, inbound_trust: 50 }, // the max
+      T4: { adj_penalty: 0, inbound_trust: 5 },
+      T5: { adj_penalty: 0.3, inbound_trust: 20 },
+      T6: { adj_penalty: 0, inbound_trust: 0 },
+    };
+    const tightWeights: Record<string, number> = {};
+    for (const m of tightMembers) {
+      const { adj_penalty, inbound_trust } = tightWeightInputs[m]!;
+      tightWeights[m] = reporterWeight(adj_penalty, inbound_trust);
+    }
+    const tightMass = reportMass(tightClusters, tightWeights);
+    const tightMaxWeight = Math.max(...tightMembers.map((m) => tightWeights[m]!));
+    if (Math.abs(tightMass - tightMaxWeight) > 1e-9) {
+      throw new Error("standing self-check failed: tight-cluster mass must equal the single max weight");
+    }
+
+    write("standing-01.json", {
+      description:
+        "Standing math (docs/trust-and-reach.md §4). Every `expected` value is produced by calling the " +
+        "corresponding TS function; implementations must reproduce it within 1e-9. `clustering` fixes a " +
+        "reporter/follows graph and the deterministic connected-component partition (components sorted by " +
+        "lexicographically-smallest member, members sorted within); `end_to_end` exercises the full " +
+        "cluster -> weights -> mass -> p_auto -> standing pipeline in two shapes: many unconnected reporters " +
+        "(diversity accumulates mass to the auto cap) and one tight mutually-following cluster (volume inside " +
+        "a cluster contributes nothing beyond its single max weight).",
+      cases: {
+        decay: decayCases,
+        reporter_weights: reporterWeightCases,
+        clustering: {
+          reporters,
+          follows: clusterFollows,
+          jaccard_threshold: CONSTANTS.report_cluster_jaccard,
+          expected_clusters: clusters,
+          weights_input: clusterWeightInputs,
+          expected_weights: clusterWeights,
+          expected_mass: clusterMass,
+          expected_p_auto: clusterPAuto,
+          standing_given_p_adj: standingCases,
+        },
+        end_to_end: {
+          many_unconnected: {
+            reporters: massReporters,
+            follows: massFollows,
+            weight_input: { adj_penalty: 0, inbound_trust: 12 },
+            expected_clusters: massClusters,
+            expected_weights: massWeights,
+            expected_mass: mass,
+            expected_p_auto: pAutoCapped,
+            note: "mass exceeds report_auto_cap / report_impact, so p_auto saturates at the cap",
+          },
+          tight_cluster: {
+            reporters: tightMembers,
+            follows: tightFollows,
+            weights_input: tightWeightInputs,
+            expected_clusters: tightClusters,
+            expected_weights: tightWeights,
+            expected_mass: tightMass,
+            note: "mass equals the single maximum member weight; volume inside the cluster adds nothing",
+          },
+        },
+      },
     });
   }
 

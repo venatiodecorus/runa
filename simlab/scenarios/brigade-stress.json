@@ -1,0 +1,12 @@
+{
+  "name": "brigade-stress",
+  "description": "M7 red-team: a genuine target with organic honest followers, brigaded by a 200-account tightly-connected reporting cohort (dense internal follows, like a sybil ring — trust-and-reach §4's threat model A4). Measured 2026-08-24 (seed 11): the brigade collapses into a single connected cluster of all 200 members, so mass is just the strongest single member's weight (3.53) instead of 200 summed weights; p_auto = 0.176 (report_impact x mass), nowhere near the 0.6 cap; target standing = 0.824 — diversity weighting is doing its job. The same 200 reports from unconnected accounts would slam the cap instead (see diverse-reports.json, where 5 reporters alone reach it).",
+  "seed": 11,
+  "graphModel": "random",
+  "days": 30,
+  "cohorts": [
+    { "name": "honest", "kind": "honest", "count": 2000, "meanFollows": 15 },
+    { "name": "target", "kind": "honest", "count": 1, "meanFollows": 15 },
+    { "name": "brigade", "kind": "reporter-brigade", "count": 200, "bridges": 10, "reports": { "target": "target" } }
+  ]
+}

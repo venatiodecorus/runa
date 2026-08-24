@@ -23,6 +23,7 @@ import {
 } from "@runa/core";
 import { getAccount, listRecords } from "../api/client.js";
 import { decryptScopedPosts, scopeLabel, type OpenScopedPostResult } from "../crypto/epochs.js";
+import { ReportDialog, ReportLink } from "./Report.js";
 import { shortId, styles } from "./theme.js";
 import type { Session } from "./session.js";
 
@@ -141,7 +142,7 @@ export function PostList({
   return (
     <div>
       {items.map((item, i) => (
-        <PostCard key={i} item={item} onOpenPost={onOpenPost} />
+        <PostCard key={i} item={item} session={session} onOpenPost={onOpenPost} />
       ))}
       {canLoadOlder && cursors && (
         <button style={styles.button} onClick={() => load(cursors).catch((e) => setError(String(e)))}>
@@ -172,8 +173,18 @@ function AudienceBadge({ record, opened }: { record: RunaRecord; opened?: OpenSc
   );
 }
 
-function PostCard({ item, onOpenPost }: { item: VerifiedItem; onOpenPost?: (id: string) => void }) {
+function PostCard({
+  item,
+  session,
+  onOpenPost,
+}: {
+  item: VerifiedItem;
+  session: Session;
+  onOpenPost?: (id: string) => void;
+}) {
+  const [reporting, setReporting] = useState(false);
   const { record, error, opened, id } = item;
+  const own = record.author === session.root.account;
   if (error !== null) {
     // Verification failed: visible placeholder, content never rendered.
     return (
@@ -205,11 +216,26 @@ function PostCard({ item, onOpenPost }: { item: VerifiedItem; onOpenPost?: (id: 
     return (
       <div style={styles.card}>
         <div style={{ whiteSpace: "pre-wrap" }}>{opened.body}</div>
-        <div style={{ ...styles.muted, marginTop: "0.4rem" }}>
-          {record.created_at} · device <span style={styles.mono}>{shortId(record.device ?? "")}</span>
-          <AudienceBadge record={record} opened={opened} />
-          <span title="signature, device-cert chain, and epoch decryption verified by this client"> · verified ✓</span>
+        <div style={{ ...styles.muted, marginTop: "0.4rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <span>
+            {record.created_at} · device <span style={styles.mono}>{shortId(record.device ?? "")}</span>
+            <AudienceBadge record={record} opened={opened} />
+            <span title="signature, device-cert chain, and epoch decryption verified by this client"> · verified ✓</span>
+          </span>
+          {!own && !reporting && <ReportLink onClick={() => setReporting(true)} />}
         </div>
+        {reporting && (
+          <div style={{ marginTop: "0.5rem" }}>
+            <ReportDialog
+              session={session}
+              subject={record.author}
+              record={id}
+              plaintext={opened.body}
+              contentLabel="post"
+              onClose={() => setReporting(false)}
+            />
+          </div>
+        )}
       </div>
     );
   }
@@ -217,10 +243,24 @@ function PostCard({ item, onOpenPost }: { item: VerifiedItem; onOpenPost?: (id: 
   return (
     <div style={styles.card}>
       <div style={{ whiteSpace: "pre-wrap" }}>{String(record.body ?? "")}</div>
-      <div style={{ ...styles.muted, marginTop: "0.4rem" }}>
-        {record.created_at} · device <span style={styles.mono}>{shortId(record.device ?? "")}</span>
-        <span title="signature and device-cert chain verified by this client"> · verified ✓</span>
+      <div style={{ ...styles.muted, marginTop: "0.4rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <span>
+          {record.created_at} · device <span style={styles.mono}>{shortId(record.device ?? "")}</span>
+          <span title="signature and device-cert chain verified by this client"> · verified ✓</span>
+        </span>
+        {!own && !reporting && <ReportLink onClick={() => setReporting(true)} />}
       </div>
+      {reporting && (
+        <div style={{ marginTop: "0.5rem" }}>
+          <ReportDialog
+            session={session}
+            subject={record.author}
+            record={id}
+            contentLabel="post"
+            onClose={() => setReporting(false)}
+          />
+        </div>
+      )}
       {typeof record.reply_to === "string" && (
         <div style={{ ...styles.muted, marginTop: "0.3rem" }}>
           ↳ reply

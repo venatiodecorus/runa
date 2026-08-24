@@ -11,6 +11,13 @@
  * GET /budget unconditionally — coldness is judged from the RECIPIENT's
  * vantage, which this client cannot compute (see dm/budget.ts) — and a 429
  * budget_exhausted becomes a calm notice that never discards the draft.
+ *
+ * "Decline & report" (M7, protocol §9.2): decrypts the request's message
+ * locally (same openDmRecord as the thread view), then hands it to
+ * ui/Report.tsx's consent-gated dialog with `record` = the dm's id and
+ * `plaintext` = the decrypted body — the reporter's own copy, forwarded only
+ * after explicit consent. On success it dismisses the request exactly like
+ * plain Dismiss (dm/requests.ts) — the sender is never notified either way.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { recordId, type DmRecord } from "@runa/core";
@@ -54,6 +61,7 @@ import {
 } from "../dm/search.js";
 import { AccountLabel } from "./AccountLabel.js";
 import { Identicon } from "./Identicon.js";
+import { ReportDialog } from "./Report.js";
 import { verifiedDisplayName } from "./authors.js";
 import { useAttestedCache, VerifiedBadge } from "./attested.js";
 import { shortId, styles } from "./theme.js";
@@ -294,6 +302,97 @@ function sourceLabel(source: Contact["source"]): string {
   return "conversation";
 }
 
+// --- decline & report (M7) -----------------------------------------------------
+
+type DeclineState =
+  | { kind: "loading" }
+  | { kind: "ready"; dmRecordId: string; plaintext: string | undefined; note: string | null }
+  | { kind: "error"; message: string };
+
+/**
+ * Decrypts the request's message (same verify-then-decrypt path as the
+ * thread view) and hands it to ReportDialog with `record`/`plaintext` set —
+ * the consent screen itself lives there. A decrypt failure still lets the
+ * reporter file the report (record id only, explained note, no plaintext)
+ * rather than silently blocking "decline & report" on a corrupted message.
+ */
+function DeclineAndReportDialog({
+  session,
+  conv,
+  onClose,
+  onDeclined,
+}: {
+  session: Session;
+  conv: DmConversation;
+  onClose: () => void;
+  onDeclined: () => void;
+}) {
+  const [state, setState] = useState<DeclineState>({ kind: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ kind: "loading" });
+    (async () => {
+      const [selfInfo, theirInfo] = await Promise.all([
+        getAccount(session.root.account),
+        getAccount(conv.with),
+      ]);
+      const certsByAccount: Record<string, AuthorKeys> = {
+        [session.root.account]: {
+          device_certs: selfInfo.device_certs,
+          device_revocations: selfInfo.device_revocations,
+        },
+        [conv.with]: { device_certs: theirInfo.device_certs, device_revocations: theirInfo.device_revocations },
+      };
+      const id = recordId(conv.last);
+      const opened = openDmRecord(conv.last, certsByAccount, session);
+      if (cancelled) return;
+      if (opened.ok) {
+        setState({ kind: "ready", dmRecordId: id, plaintext: opened.body, note: null });
+      } else {
+        setState({
+          kind: "ready",
+          dmRecordId: id,
+          plaintext: undefined,
+          note: "Could not decrypt this message on this device — the report will reference it but won't include its content.",
+        });
+      }
+    })().catch((e) => {
+      if (!cancelled) setState({ kind: "error", message: e instanceof Error ? e.message : String(e) });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session, conv]);
+
+  if (state.kind === "loading") return <p style={styles.muted}>Loading message…</p>;
+  if (state.kind === "error") {
+    return (
+      <div style={styles.errorCard}>
+        <strong>Could not load this message</strong>
+        <div style={styles.muted}>{state.message}</div>
+        <button style={{ ...styles.button, marginTop: "0.5rem" }} onClick={onClose}>
+          Close
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div>
+      {state.note !== null && <p style={{ ...styles.muted, marginBottom: "0.5rem" }}>{state.note}</p>}
+      <ReportDialog
+        session={session}
+        subject={conv.with}
+        record={state.dmRecordId}
+        plaintext={state.plaintext}
+        contentLabel="message"
+        onClose={onClose}
+        onSubmitted={onDeclined}
+      />
+    </div>
+  );
+}
+
 // --- inbox --------------------------------------------------------------------
 
 export function Messages({ session, imageboard }: { session: Session; imageboard: boolean }) {
@@ -302,6 +401,7 @@ export function Messages({ session, imageboard }: { session: Session; imageboard
   const [openWith, setOpenWith] = useState<{ id: string; focusCompose: boolean } | null>(null);
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
   const [showDismissed, setShowDismissed] = useState(false);
+  const [decliningWith, setDecliningWith] = useState<string | null>(null);
   const { names, ensureNames } = useVerifiedNames(imageboard);
   const { attested } = useAttestedCache();
 
@@ -394,8 +494,10 @@ export function Messages({ session, imageboard }: { session: Session; imageboard
           <p style={styles.muted}>
             From accounts outside your web of trust — reaching you cost the sender a cold-outreach
             token. Accepting is just replying: once you reply, the conversation moves to your inbox
-            and stays free for both of you. Dismissing only hides a request in this browser;
-            decline-with-report arrives with the moderation milestone.
+            and stays free for both of you. Dismissing only hides a request in this browser, and the
+            sender is never notified either way — that's true of "Decline &amp; report" too, which
+            additionally lets you forward your own decrypted copy of the message for review, with
+            your explicit consent.
           </p>
           {tray.visible.map((c) => (
             <ConversationRow
@@ -419,10 +521,35 @@ export function Messages({ session, imageboard }: { session: Session; imageboard
                   >
                     Dismiss
                   </button>
+                  <button
+                    style={styles.button}
+                    title="Decline and optionally forward your decrypted copy of the message for review — the sender is not notified."
+                    onClick={() => setDecliningWith(c.with)}
+                  >
+                    Decline &amp; report
+                  </button>
                 </>
               }
             />
           ))}
+          {decliningWith !== null &&
+            (() => {
+              const target = tray.visible.find((c) => c.with === decliningWith);
+              if (!target) return null;
+              return (
+                <div style={{ marginTop: "0.5rem", marginBottom: "0.75rem" }}>
+                  <DeclineAndReportDialog
+                    session={session}
+                    conv={target}
+                    onClose={() => setDecliningWith(null)}
+                    onDeclined={() => {
+                      setDecliningWith(null);
+                      dismiss(target.with);
+                    }}
+                  />
+                </div>
+              );
+            })()}
           {tray.visible.length === 0 && tray.dismissed.length > 0 && (
             <p style={styles.muted}>No open requests.</p>
           )}

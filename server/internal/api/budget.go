@@ -39,15 +39,21 @@ type bucketState struct {
 // refreshBucket brings the account's bucket current to "today" (UTC, via
 // the injected clock): each elapsed whole day applies one RefillBucket with
 // the CURRENT daily budget, recomputed from live inbound trust — the
-// standing-weighted follower count, which at standing 1.0 (pre-M7) is the
-// follower count. A brand-new bucket starts with one daily budget.
+// standing-weighted follower sum of trust-and-reach §3, multiplied by the
+// sender's own standing (§9.3). A brand-new bucket starts with one daily
+// budget. Standing shrinks the budget the moment it drops, and a refill
+// after the penalty decays restores it: the whole formula is lazy.
 func (s *server) refreshBucket(account string) (bucketState, error) {
-	followers, err := s.st.FollowerCount(account)
+	calc := s.standingCalc()
+	inbound, err := calc.inboundStandingWeighted(account)
 	if err != nil {
 		return bucketState{}, err
 	}
-	inbound := float64(followers) // standing 1.0 pre-M7
-	budget := trust.DailyBudget(trust.ColdBudgetOpen, inbound, trust.BudgetGrowthK, 1.0)
+	senderStanding, err := calc.standing(account)
+	if err != nil {
+		return bucketState{}, err
+	}
+	budget := trust.DailyBudget(trust.ColdBudgetOpen, inbound, trust.BudgetGrowthK, senderStanding)
 	today := s.now().UTC().Format(bucketDateLayout)
 	b, err := s.st.GetBucket(account)
 	if err != nil {
@@ -123,7 +129,15 @@ func (s *server) meterColdInitiation(w http.ResponseWriter, rec *record.Record, 
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())
 		return false
 	}
-	if !trust.IsColdInitiation(recipient, sender, gv, trust.DefaultParams, 1.0) {
+	calc := s.standingCalc()
+	senderStanding, err := calc.standing(sender)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", err.Error())
+		return false
+	}
+	// Cold classification uses effective trust — subjective × the sender's
+	// standing (§9.3) — so a penalized sender is cold to more people.
+	if !trust.IsColdInitiation(recipient, sender, gv, trust.DefaultParams, senderStanding) {
 		return true // warm path is never metered
 	}
 	// Reciprocal window (DM-based): if the recipient has ever sent the
@@ -135,6 +149,19 @@ func (s *server) meterColdInitiation(w http.ResponseWriter, rec *record.Record, 
 	}
 	if reciprocal {
 		return true
+	}
+	// A freeze (§9.4) zeroes cold outreach until frozen_until, regardless of
+	// what the bucket holds. Warm paths and posting are untouched — the
+	// check sits behind the cold + reciprocal-window classification above.
+	frozen, err := calc.frozenUntil(sender)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", err.Error())
+		return false
+	}
+	if frozen != "" {
+		writeError(w, http.StatusTooManyRequests, "cold_outreach_frozen",
+			"cold outreach is frozen until "+frozen)
+		return false
 	}
 	if _, err := s.refreshBucket(sender); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())

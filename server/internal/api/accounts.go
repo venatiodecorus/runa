@@ -15,7 +15,7 @@ const maxBodyBytes = 1 << 20
 
 // Accepted record types (docs/protocol.md §6): Phase 1 identity/content,
 // the Phase 2 graph types, the Phase 3 dm envelope, the Phase 5 tier-3
-// types, and the Phase 6 attestation types.
+// types, the Phase 6 attestation types, and the Phase 7 report.
 var acceptedTypes = map[string]bool{
 	"post":               true,
 	"profile":            true,
@@ -32,6 +32,7 @@ var acceptedTypes = map[string]bool{
 	"attestation":        true,
 	"attestation-revoke": true,
 	"domain-claim":       true,
+	"report":             true,
 }
 
 // tier3Types are the scoped-post machinery of docs/protocol.md §5: extra
@@ -292,6 +293,9 @@ func (s *server) handleIngestRecord(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if typ == "report" && !s.validateReportIngest(w, rec) {
+		return
+	}
 	if typ == "dm" && !s.validateDMIngest(w, rec) {
 		return
 	}
@@ -299,7 +303,10 @@ func (s *server) handleIngestRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// All verification has passed; meter cold initiations (M4) before any
-	// storage — a 429 means the record is not stored at all.
+	// storage — a 429 means the record is not stored at all. `report` is
+	// never metered (§9.1: reports are the defense mechanism), which
+	// meterColdInitiation's default branch already guarantees — only `dm`
+	// and `follow` are initiations.
 	if !s.meterColdInitiation(w, rec, typ) {
 		return
 	}
@@ -330,6 +337,8 @@ func (s *server) handleIngestRecord(w http.ResponseWriter, r *http.Request) {
 		err = s.applyTier3Record(typ, rec, row.ID)
 	case "attestation", "attestation-revoke":
 		err = s.applyAttestationRecord(typ, rec, row.ID)
+	case "report":
+		err = s.applyReportRecord(rec, row.ID)
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())

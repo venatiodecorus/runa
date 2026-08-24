@@ -23,6 +23,8 @@ func main() {
 	instanceName := flag.String("instance-name", envOr("RUNAD_INSTANCE_NAME", "runa-dev"), "instance name published via /api/v1/meta")
 	imageboard := flag.Bool("imageboard", envOr("RUNAD_IMAGEBOARD", "") == "1" || envOr("RUNAD_IMAGEBOARD", "") == "true",
 		"imageboard mode (design §17): disable profile customization; accounts render as ids")
+	adminToken := flag.String("admin-token", envOr("RUNAD_ADMIN_TOKEN", ""),
+		"operator bearer token for the review queue (protocol §9.4); empty disables /api/v1/admin/* entirely")
 	flag.Parse()
 
 	st, err := store.Open(*dbPath)
@@ -31,7 +33,11 @@ func main() {
 	}
 	defer st.Close()
 
-	handler := api.New(st, api.Config{InstanceName: *instanceName, Imageboard: *imageboard})
+	handler := api.New(st, api.Config{
+		InstanceName: *instanceName,
+		Imageboard:   *imageboard,
+		AdminToken:   *adminToken,
+	})
 	log.Printf("runad listening on %s (db: %s)", *addr, *dbPath)
 	if err := http.ListenAndServe(*addr, handler); err != nil {
 		log.Fatal(err)

@@ -15,6 +15,7 @@ import { Devices } from "./Devices.js";
 import { Profile } from "./Profile.js";
 import { PostPage } from "./PostPage.js";
 import { Identicon } from "./Identicon.js";
+import { StandingBanner, useStanding } from "./StandingBanner.js";
 import { shortId, styles } from "./theme.js";
 
 type AnonRoute = "signup" | "recover";
@@ -36,6 +37,7 @@ export function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [anonRoute, setAnonRoute] = useState<AnonRoute>("signup");
   const [route, setRoute] = useState<UserRoute>({ kind: "feed" });
+  const standing = useStanding(session);
 
   useEffect(() => {
     fetchMeta().then(setMeta, (e) => setMetaError(String(e)));
@@ -143,6 +145,7 @@ export function App() {
               reachable again.
             </p>
           )}
+          <StandingBanner standing={standing} />
           {route.kind === "feed" && (
             <Feed session={session} imageboard={imageboard} onOpenPost={openPost} onViewAccount={viewAccount} />
           )}

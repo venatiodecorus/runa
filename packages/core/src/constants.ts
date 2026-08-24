@@ -16,6 +16,13 @@ export const CONSTANTS = {
   budget_carryover_days: 2,
   budget_growth_k: 4,
   epoch_max_age_days: 30,
+  report_window_days: 30,
+  report_impact: 0.05,
+  report_auto_cap: 0.6,
+  report_cluster_jaccard: 0.3,
+  false_report_burn: 0.2,
+  report_uphold_penalty: 0.6,
+  freeze_days: 7,
 } as const;
 
 export type Constants = { [K in keyof typeof CONSTANTS]: number };

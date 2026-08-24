@@ -1,0 +1,312 @@
+{
+  "description": "Standing math (docs/trust-and-reach.md §4). Every `expected` value is produced by calling the corresponding TS function; implementations must reproduce it within 1e-9. `clustering` fixes a reporter/follows graph and the deterministic connected-component partition (components sorted by lexicographically-smallest member, members sorted within); `end_to_end` exercises the full cluster -> weights -> mass -> p_auto -> standing pipeline in two shapes: many unconnected reporters (diversity accumulates mass to the auto cap) and one tight mutually-following cluster (volume inside a cluster contributes nothing beyond its single max weight).",
+  "cases": {
+    "decay": [
+      {
+        "p0": 0.6,
+        "elapsed_days": 30,
+        "half_life_days": 30,
+        "expected": 0.3
+      },
+      {
+        "p0": 0.6,
+        "elapsed_days": 0,
+        "half_life_days": 30,
+        "expected": 0.6
+      },
+      {
+        "p0": 0.6,
+        "elapsed_days": 60,
+        "half_life_days": 30,
+        "expected": 0.15
+      },
+      {
+        "p0": 1,
+        "elapsed_days": 90,
+        "half_life_days": 30,
+        "expected": 0.125
+      },
+      {
+        "p0": 0.6,
+        "elapsed_days": -5,
+        "half_life_days": 30,
+        "expected": 0.6
+      }
+    ],
+    "reporter_weights": [
+      {
+        "adj_penalty": 0,
+        "inbound_trust": 10,
+        "expected": 2.3978952727983707
+      },
+      {
+        "adj_penalty": 0.2,
+        "inbound_trust": 10,
+        "expected": 1.9183162182386966
+      },
+      {
+        "adj_penalty": 1,
+        "inbound_trust": 50,
+        "expected": 0
+      },
+      {
+        "adj_penalty": 0,
+        "inbound_trust": 0,
+        "expected": 0
+      }
+    ],
+    "clustering": {
+      "reporters": [
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7"
+      ],
+      "follows": {
+        "R1": [
+          "R2"
+        ],
+        "R2": [],
+        "R3": [
+          "X",
+          "Y",
+          "Z"
+        ],
+        "R4": [
+          "X",
+          "Y",
+          "W"
+        ],
+        "R5": [
+          "Q"
+        ],
+        "R6": [],
+        "R7": []
+      },
+      "jaccard_threshold": 0.3,
+      "expected_clusters": [
+        [
+          "R1",
+          "R2"
+        ],
+        [
+          "R3",
+          "R4"
+        ],
+        [
+          "R5"
+        ],
+        [
+          "R6"
+        ],
+        [
+          "R7"
+        ]
+      ],
+      "weights_input": {
+        "R1": {
+          "adj_penalty": 0,
+          "inbound_trust": 10
+        },
+        "R2": {
+          "adj_penalty": 0.2,
+          "inbound_trust": 5
+        },
+        "R3": {
+          "adj_penalty": 0,
+          "inbound_trust": 20
+        },
+        "R4": {
+          "adj_penalty": 0.5,
+          "inbound_trust": 8
+        },
+        "R5": {
+          "adj_penalty": 0,
+          "inbound_trust": 2
+        },
+        "R6": {
+          "adj_penalty": 0,
+          "inbound_trust": 0
+        },
+        "R7": {
+          "adj_penalty": 1,
+          "inbound_trust": 50
+        }
+      },
+      "expected_weights": {
+        "R1": 2.3978952727983707,
+        "R2": 1.433407575382444,
+        "R3": 3.044522437723423,
+        "R4": 1.0986122886681098,
+        "R5": 1.0986122886681096,
+        "R6": 0,
+        "R7": 0
+      },
+      "expected_mass": 6.541029999189902,
+      "expected_p_auto": 0.3270514999594951,
+      "standing_given_p_adj": [
+        {
+          "p_auto": 0.3270514999594951,
+          "p_adj": 0,
+          "expected": 0.6729485000405049
+        },
+        {
+          "p_auto": 0.3270514999594951,
+          "p_adj": 0.6,
+          "expected": 0.26917940001620194
+        },
+        {
+          "p_auto": 0.3270514999594951,
+          "p_adj": 1,
+          "expected": 0
+        }
+      ]
+    },
+    "end_to_end": {
+      "many_unconnected": {
+        "reporters": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "follows": {},
+        "weight_input": {
+          "adj_penalty": 0,
+          "inbound_trust": 12
+        },
+        "expected_clusters": [
+          [
+            "E1"
+          ],
+          [
+            "E2"
+          ],
+          [
+            "E3"
+          ],
+          [
+            "E4"
+          ],
+          [
+            "E5"
+          ]
+        ],
+        "expected_weights": {
+          "E1": 2.5649493574615367,
+          "E2": 2.5649493574615367,
+          "E3": 2.5649493574615367,
+          "E4": 2.5649493574615367,
+          "E5": 2.5649493574615367
+        },
+        "expected_mass": 12.824746787307683,
+        "expected_p_auto": 0.6,
+        "note": "mass exceeds report_auto_cap / report_impact, so p_auto saturates at the cap"
+      },
+      "tight_cluster": {
+        "reporters": [
+          "T1",
+          "T2",
+          "T3",
+          "T4",
+          "T5",
+          "T6"
+        ],
+        "follows": {
+          "T1": [
+            "T2",
+            "T3",
+            "T4",
+            "T5",
+            "T6"
+          ],
+          "T2": [
+            "T1",
+            "T3",
+            "T4",
+            "T5",
+            "T6"
+          ],
+          "T3": [
+            "T1",
+            "T2",
+            "T4",
+            "T5",
+            "T6"
+          ],
+          "T4": [
+            "T1",
+            "T2",
+            "T3",
+            "T5",
+            "T6"
+          ],
+          "T5": [
+            "T1",
+            "T2",
+            "T3",
+            "T4",
+            "T6"
+          ],
+          "T6": [
+            "T1",
+            "T2",
+            "T3",
+            "T4",
+            "T5"
+          ]
+        },
+        "weights_input": {
+          "T1": {
+            "adj_penalty": 0,
+            "inbound_trust": 1
+          },
+          "T2": {
+            "adj_penalty": 0,
+            "inbound_trust": 3
+          },
+          "T3": {
+            "adj_penalty": 0.1,
+            "inbound_trust": 50
+          },
+          "T4": {
+            "adj_penalty": 0,
+            "inbound_trust": 5
+          },
+          "T5": {
+            "adj_penalty": 0.3,
+            "inbound_trust": 20
+          },
+          "T6": {
+            "adj_penalty": 0,
+            "inbound_trust": 0
+          }
+        },
+        "expected_clusters": [
+          [
+            "T1",
+            "T2",
+            "T3",
+            "T4",
+            "T5",
+            "T6"
+          ]
+        ],
+        "expected_weights": {
+          "T1": 0.6931471805599453,
+          "T2": 1.3862943611198906,
+          "T3": 3.538643069451893,
+          "T4": 1.791759469228055,
+          "T5": 2.131165706406396,
+          "T6": 0
+        },
+        "expected_mass": 3.538643069451893,
+        "note": "mass equals the single maximum member weight; volume inside the cluster adds nothing"
+      }
+    }
+  }
+}

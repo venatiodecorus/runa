@@ -85,11 +85,18 @@ export function effectiveTrust(subjective: number, standing = 1.0): number {
 /**
  * Feed buckets (trust-and-reach §2): ≥ threshold ranks normally; a positive
  * sub-threshold score exists but doesn't surface unprompted; no path at all
- * is pull-only.
+ * is pull-only. `directFollow` (protocol §9.3, trust-and-reach §5 invariant
+ * 3): an author the viewer directly follows ranks normally regardless of
+ * effective trust — a standing penalty never severs a chosen edge.
  */
 export type FeedBucket = "normal" | "below-threshold" | "no-path";
 
-export function feedBucket(effective: number, constants: TrustConstants = CONSTANTS): FeedBucket {
+export function feedBucket(
+  effective: number,
+  constants: TrustConstants = CONSTANTS,
+  directFollow = false,
+): FeedBucket {
+  if (directFollow) return "normal";
   if (effective >= constants.feed_surface_threshold) return "normal";
   if (effective > 0) return "below-threshold";
   return "no-path";

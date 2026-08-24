@@ -45,6 +45,7 @@ import {
 import { fetchAndCheckDomainProof, type DomainCheckResult } from "../verify/domain.js";
 import { Identicon } from "./Identicon.js";
 import { PostList, verifyAll } from "./Posts.js";
+import { ReportDialog } from "./Report.js";
 import { downloadJson, shortId, styles } from "./theme.js";
 import type { Session } from "./session.js";
 
@@ -247,6 +248,7 @@ function GraphActions({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [budgetNotice, setBudgetNotice] = useState<{ serverMessage: string; meter: string | null } | null>(null);
+  const [reporting, setReporting] = useState(false);
 
   const loadGraph = useCallback(async () => {
     setGraph(await getGraph2Hop());
@@ -312,7 +314,22 @@ function GraphActions({
         </button>
         {following && <span style={styles.muted}>Following</span>}
         {muted && <span style={styles.muted}>Muted — zero trust, prunes their hop-2 paths</span>}
+        <span style={{ flex: 1 }} />
+        {!reporting && (
+          <button
+            style={styles.button}
+            title="Report this account to the instance operator — private, never shown to them"
+            onClick={() => setReporting(true)}
+          >
+            Report
+          </button>
+        )}
       </div>
+      {reporting && (
+        <div style={{ marginTop: "0.5rem" }}>
+          <ReportDialog session={session} subject={account} onClose={() => setReporting(false)} />
+        </div>
+      )}
       {budgetNotice !== null && (
         <div style={{ ...styles.noticeCard, marginTop: "0.5rem" }}>
           <strong>You've used today's cold-outreach budget</strong>

@@ -5,7 +5,7 @@
 ## Where human judgment lives
 
 - The final rung of the enforcement ladder (account action) is **always human-reviewed**. Automation may only move accounts along the early rungs (friction, reach reduction, cold-outreach freeze). Invite provenance is surfaced to humans only at this rung, never published.
-- Adjudicating contested reports (which feeds reporter-standing consequences in both directions).
+- Adjudicating contested reports (which feeds reporter-standing consequences in both directions). Since M7 the reference implementation ships the operator review queue (protocol §9.4): entries open automatically when the automated penalty caps out, and the operator's decisions (dismiss / uphold / freeze / none) are the only path to consequences beyond that cap. Account action itself is deliberately not implemented until this document defines reviewer roles and an appeal path (open items below).
 
 ## How thresholds and algorithms change
 

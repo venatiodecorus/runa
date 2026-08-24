@@ -25,6 +25,7 @@ import { decryptScopedPosts, scopeLabel, type OpenScopedPostResult } from "../cr
 import { instanceConstants, rankFeed, type RankedFeed, type RankedItem } from "../feed/rank.js";
 import { AccountLabel } from "./AccountLabel.js";
 import { ReplyComposer } from "./ReplyComposer.js";
+import { ReportDialog, ReportLink } from "./Report.js";
 import { badgeStyle, styles } from "./theme.js";
 import { verifiedDisplayName } from "./authors.js";
 import { useAttestedCache, VerifiedBadge } from "./attested.js";
@@ -224,6 +225,7 @@ function FeedCard({
   onReplyPosted: () => void;
 }) {
   const [replying, setReplying] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const { record, author } = item.item;
   if (error !== null) {
     // Verification failed: visible placeholder, content never rendered.
@@ -274,10 +276,25 @@ function FeedCard({
         <AudienceBadge scoped={scoped} opened={opened} />
       </div>
       <div style={{ whiteSpace: "pre-wrap" }}>{body}</div>
-      <div style={{ ...styles.muted, marginTop: "0.4rem" }}>
-        {record.created_at}
-        <span title="signature and device-cert chain verified by this client"> · verified ✓</span>
+      <div style={{ ...styles.muted, marginTop: "0.4rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <span>
+          {record.created_at}
+          <span title="signature and device-cert chain verified by this client"> · verified ✓</span>
+        </span>
+        {!item.own && !reporting && <ReportLink onClick={() => setReporting(true)} />}
       </div>
+      {reporting && (
+        <div style={{ marginTop: "0.5rem" }}>
+          <ReportDialog
+            session={session}
+            subject={author}
+            record={item.id}
+            plaintext={scoped && opened?.ok ? opened.body : undefined}
+            contentLabel="post"
+            onClose={() => setReporting(false)}
+          />
+        </div>
+      )}
       {typeof record.reply_to === "string" && (
         <div style={{ ...styles.muted, marginTop: "0.3rem" }}>
           ↳ reply ·{" "}

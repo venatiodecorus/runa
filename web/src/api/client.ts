@@ -65,6 +65,13 @@ export interface FeedItem {
   candidate_trust: number;
   /** Total reply count for this record (protocol §6 "Replies & threads"). */
   reply_count: number;
+  /**
+   * Server-authoritative standing for `author`, ∈ [0,1] (protocol §9.3) — the
+   * one factor clients cannot recompute (its inputs, reports, are private).
+   * Absent on older servers; callers MUST clamp to [0,1] and default to 1.0
+   * (feed/rank.ts does this, never inline at the call site).
+   */
+  standing?: number;
 }
 
 export interface FeedAuthor {
@@ -203,6 +210,8 @@ export interface RecordResponse {
   author: FeedAuthor;
   reply_count: number;
   candidate_trust: number;
+  /** Server-authoritative standing for the record's author (protocol §9.3); see FeedItem.standing. */
+  standing?: number;
 }
 
 export interface RepliesResponse {
@@ -295,6 +304,28 @@ export interface BudgetInfo {
 /** GET /budget (auth) — the viewer's cold-outreach token bucket. */
 export function getBudget(): Promise<BudgetInfo> {
   return request("/budget", { auth: true });
+}
+
+// --- standing (protocol §9.3, M7) --------------------------------------------
+
+/**
+ * GET /standing response shape. `reasons` names mechanisms only — never
+ * reporters, counts, or trigger values (design §4.2, "told that, not why").
+ * `standing` is the same server-authoritative, private-inputs value that
+ * accompanies feed/record items — clients MUST clamp it to [0,1] before use
+ * (feed/rank.ts's clampStanding) and never treat an out-of-range value as
+ * amplifying trust.
+ */
+export interface StandingInfo {
+  standing: number;
+  limited: boolean;
+  reasons: Array<"reports" | "adjudication" | "frozen" | string>;
+  frozen_until: string | null;
+}
+
+/** GET /standing (auth) — the viewer's own reach-limiting status, told-that-not-why. */
+export function getStanding(): Promise<StandingInfo> {
+  return request("/standing", { auth: true });
 }
 
 // --- auth (protocol §6: signed challenge, no passwords) ---------------------

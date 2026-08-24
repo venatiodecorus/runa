@@ -17,6 +17,15 @@ const (
 	BudgetCarryoverDays  = 2
 	BudgetGrowthK        = 4
 	EpochMaxAgeDays      = 30
+
+	// Standing & reports (M7, docs/trust-and-reach.md §4).
+	ReportWindowDays     = 30
+	ReportImpact         = 0.05
+	ReportAutoCap        = 0.6
+	ReportClusterJaccard = 0.3
+	FalseReportBurn      = 0.2
+	ReportUpholdPenalty  = 0.6
+	FreezeDays           = 7
 )
 
 // Constants returns the published constants as a map, in the shape served by
@@ -33,5 +42,12 @@ func Constants() map[string]any {
 		"budget_carryover_days":   BudgetCarryoverDays,
 		"budget_growth_k":         BudgetGrowthK,
 		"epoch_max_age_days":      EpochMaxAgeDays,
+		"report_window_days":      ReportWindowDays,
+		"report_impact":           ReportImpact,
+		"report_auto_cap":         ReportAutoCap,
+		"report_cluster_jaccard":  ReportClusterJaccard,
+		"false_report_burn":       FalseReportBurn,
+		"report_uphold_penalty":   ReportUpholdPenalty,
+		"freeze_days":             FreezeDays,
 	}
 }

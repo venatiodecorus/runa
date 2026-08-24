@@ -78,4 +78,14 @@ describe("effectiveTrust & feedBucket", () => {
   it("rejects out-of-range standing", () => {
     expect(() => effectiveTrust(1, 1.5)).toThrow(/standing/);
   });
+
+  it("directFollow override: a direct-follow author ranks normally regardless of effective trust (protocol §9.3)", () => {
+    expect(feedBucket(0, undefined, true)).toBe("normal");
+    expect(feedBucket(0.01, undefined, true)).toBe("normal");
+  });
+
+  it("directFollow defaults to false: existing two-arg calls are unaffected", () => {
+    expect(feedBucket(0)).toBe("no-path");
+    expect(feedBucket(0.29)).toBe("below-threshold");
+  });
 });

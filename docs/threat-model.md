@@ -34,11 +34,11 @@ Cannot acquire inbound honest-graph trust. Trust rings carry weight only interna
 
 ### A4. Brigade (real accounts, coordinated reports)
 
-Report weighting discounts graph-correlated reporter clusters (a brigade is a tight cluster by definition); diversity beats volume. Adjudicated-false reports burn reporter standing. Trust-weighting means a brigade's mutes shape *their own* neighborhoods most. Residual risk: a genuinely graph-diverse mass campaign still moves standing — the human-review rung is the backstop, and standing decays (no permanent marks).
+Report weighting discounts graph-correlated reporter clusters (a brigade is a tight cluster by definition); diversity beats volume — concretely (trust-and-reach §4): reporters are clustered by follow links and follow-set overlap, and each cluster contributes only its single strongest reporter's weight to the mass that dents standing. Reporter weight uses the reporter's *adjudicated* standing component only, so brigading a target's likely defenders cannot silence their reports (report-the-reporters). Adjudicated-false reports burn reporter standing. Trust-weighting means a brigade's mutes shape *their own* neighborhoods most. Residual risk: a genuinely graph-diverse mass campaign still moves standing — the human-review rung is the backstop, and standing decays (no permanent marks).
 
 ### A5. Recipient betrayal
 
-Any tier-2/3 recipient can leak plaintext. Unsolvable (the screenshot problem) — stated, not hidden. Report-with-plaintext-forwarding is the legitimate, envelope-proven form: the reporter proves they were a real recipient; the server gains no decryption capability.
+Any tier-2/3 recipient can leak plaintext. Unsolvable (the screenshot problem) — stated, not hidden. Report-with-plaintext-forwarding is the legitimate, envelope-proven form (protocol §9.2): the reporter proves they were a real recipient *structurally* — the stored envelope already names its recipients — and no key material travels, so the server gains no decryption capability. Consequence, stated: forwarded plaintext is the reporter's signed testimony, not cryptographically bound to the ciphertext; fabricating it is an adjudicated-false report and burns the reporter.
 
 ### A6. Client-device compromise
 
@@ -50,4 +50,4 @@ Filter bubbles by construction (explore mode is the designated mitigation); full
 
 ## PoC-specific notes
 
-The PoC (see [`poc-plan.md`](poc-plan.md)) includes cold-outreach budgets (M4 landed) but still runs without: signup PoW, behavioral friction, standing/reports, reproducible-build transparency. Budgets alone price cold outreach per account but nothing yet prices bulk account *creation* (§5.3 arithmetic) — so the honest statement remains: do not demo the PoC as spam-resistant.
+The PoC (see [`poc-plan.md`](poc-plan.md)) includes cold-outreach budgets (M4) and standing/reports (M7) but still runs without: signup PoW, behavioral friction, reproducible-build transparency. Budgets and standing price cold outreach and coordinated abuse per account, but nothing yet prices bulk account *creation* (§5.3 arithmetic) — so the honest statement remains: do not demo the PoC as spam-resistant.

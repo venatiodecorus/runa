@@ -1,0 +1,12 @@
+{
+  "name": "diverse-reports",
+  "description": "M7 red-team: the same shape of target, reported instead by 5 unconnected accounts (no follows or overlap among each other — reporter-diverse cohort, trust-and-reach §4's diversity-weighting contrast case) each with 11 of their own distinct honest followers (weight = ln(12) = 2.4849 each; bumped from the spec's illustrative ~10 followers/ln(11)~=2.4 so the five singleton-cluster masses clear report_impact x M >= report_auto_cap with margin instead of landing at 0.05 x 11.99 = 0.599, just under it). Measured 2026-08-24 (seed 12): 5 singleton clusters (never linked — Jaccard(empty,empty)=0 by convention, and no member follows another), mass = 12.4245, p_auto hits the 0.6 cap exactly -> review-queue territory, standing collapses to 0.4 despite only 5 reporters total versus the 200-strong brigade-stress cohort that barely dents standing (0.824).",
+  "seed": 12,
+  "graphModel": "random",
+  "days": 30,
+  "cohorts": [
+    { "name": "honest", "kind": "honest", "count": 2000, "meanFollows": 15 },
+    { "name": "target", "kind": "honest", "count": 1, "meanFollows": 15 },
+    { "name": "diverse", "kind": "reporter-diverse", "count": 5, "targetFollowers": 11, "reports": { "target": "target" } }
+  ]
+}

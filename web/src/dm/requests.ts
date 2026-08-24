@@ -4,8 +4,12 @@
  * conversation. "Dismiss" is purely LOCAL: a flag in this browser's kv store
  * (store/db.ts), keyed by counterparty — the server never learns about it,
  * and a fresh device starts with an empty dismissed set (browser storage is
- * disposable by design). Decline-with-report arrives with the moderation
- * milestone (M7).
+ * disposable by design). "Decline & report" (M7, ui/Messages.tsx +
+ * moderation/report.ts) decrypts the request's message, gates forwarding it
+ * behind explicit consent (protocol §9.2), submits a `report` record, then
+ * calls dismissRequest below exactly like plain Dismiss — declining always
+ * hides locally, reporting is the separate, optional, consent-gated act on
+ * top of it.
  *
  * Framework-free: no React imports.
  */

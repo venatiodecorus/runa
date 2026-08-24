@@ -6,13 +6,21 @@
  */
 import baseline from "../../scenarios/baseline-10k.json";
 import sybilStress from "../../scenarios/sybil-stress.json";
+import brigadeStress from "../../scenarios/brigade-stress.json";
+import diverseReports from "../../scenarios/diverse-reports.json";
 import type { ScenarioSpec, SimConstants } from "../population/types.js";
 import { resolveConstants } from "../metrics/reach.js";
+import { computeAllStanding, type StandingResult } from "../metrics/standing.js";
 import { runScenario, type RunResult } from "../run.js";
 import { attachLineTooltips, esc, fmt, histogram, legend, lineChart, type Series } from "./charts.js";
 import { INK, SURFACE } from "./theme.js";
 
-const SCENARIOS: ScenarioSpec[] = [baseline as ScenarioSpec, sybilStress as ScenarioSpec];
+const SCENARIOS: ScenarioSpec[] = [
+  baseline as ScenarioSpec,
+  sybilStress as ScenarioSpec,
+  brigadeStress as ScenarioSpec,
+  diverseReports as ScenarioSpec,
+];
 const REFERENCE = resolveConstants();
 
 interface SliderSpec {
@@ -148,6 +156,7 @@ function results(r: RunResult, cohorts: string[]): string {
   const trajectories = trajectorySeries(r);
   return `
     <section style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem">${tiles}</section>
+    ${standingSection(r)}
     <section style="margin-bottom:1.25rem">
       <h2 style="font-size:14px;margin:0 0 .25rem">Reach CDF by cohort</h2>
       <p style="color:${INK.muted};font-size:11px;margin:0 0 .25rem">fraction of the cohort (y) whose reach is ≤ x — steeper-left = less reach</p>
@@ -165,6 +174,43 @@ function results(r: RunResult, cohorts: string[]): string {
         : ""
     }
     <button data-reset style="font-size:12px">Reset constants to reference</button>`;
+}
+
+/**
+ * M7 standing (trust-and-reach §4): if this scenario has reporting cohorts
+ * (brigade-stress, diverse-reports), show diversity-weighted mass and the
+ * resulting standing per target — always from @runa/core's own math via
+ * metrics/standing.ts, computed at reference constants (not slider-wired;
+ * the reach/budget sliders above cover the tunable-constant story already).
+ */
+function standingSection(r: RunResult): string {
+  const standing = computeAllStanding(r.population);
+  const targets = Object.entries(standing);
+  if (targets.length === 0) return "";
+  const rows = targets
+    .map(([target, s]: [string, StandingResult]) => standingRow(target, s))
+    .join("");
+  return `
+    <section style="margin-bottom:1.25rem">
+      <h2 style="font-size:14px;margin:0 0 .25rem">Standing (reports)</h2>
+      <p style="color:${INK.muted};font-size:11px;margin:0 0 .5rem">diversity-weighted report mass per target — each reporter cluster contributes only its strongest member's weight</p>
+      <table style="border-collapse:collapse;font-size:12px">
+        <thead><tr>${["target", "reporters", "clusters", "mass", "p_auto", "standing"].map((h) => `<th style="text-align:left;padding:2px 10px 4px 0;color:${INK.secondary};font-weight:500">${h}</th>`).join("")}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </section>`;
+}
+
+function standingRow(target: string, s: StandingResult): string {
+  const cells = [
+    esc(target),
+    String(s.reporters.length),
+    String(s.clusters.length),
+    fmt(s.mass),
+    fmt(s.pAuto),
+    fmt(s.standing),
+  ];
+  return `<tr>${cells.map((c) => `<td style="padding:2px 10px 2px 0">${c}</td>`).join("")}</tr>`;
 }
 
 function tile(value: string, label: string): string {

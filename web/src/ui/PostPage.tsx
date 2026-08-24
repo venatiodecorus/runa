@@ -24,6 +24,7 @@ import { bucketReplies, instanceConstants, type BucketedReplies, type RankedItem
 import type { GraphView, TrustConstants } from "@runa/core";
 import { AccountLabel } from "./AccountLabel.js";
 import { ReplyComposer } from "./ReplyComposer.js";
+import { ReportDialog, ReportLink } from "./Report.js";
 import { verifiedDisplayName } from "./authors.js";
 import { badgeStyle, styles } from "./theme.js";
 import { useAttestedCache, VerifiedBadge } from "./attested.js";
@@ -101,6 +102,7 @@ export function PostPage({
   const [state, setState] = useState<LoadedState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showCollapsed, setShowCollapsed] = useState(false);
+  const [reportingRoot, setReportingRoot] = useState(false);
   const { attested } = useAttestedCache();
 
   const load = useCallback(async (): Promise<LoadedState> => {
@@ -240,10 +242,26 @@ export function PostPage({
             />
           </div>
           <div style={{ whiteSpace: "pre-wrap" }}>{String(recordRes.record.body ?? "")}</div>
-          <div style={{ ...styles.muted, marginTop: "0.4rem" }}>
-            {recordRes.record.created_at}
-            <span title="signature and device-cert chain verified by this client"> · verified ✓</span>
+          <div style={{ ...styles.muted, marginTop: "0.4rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span>
+              {recordRes.record.created_at}
+              <span title="signature and device-cert chain verified by this client"> · verified ✓</span>
+            </span>
+            {recordRes.record.author !== session.root.account && !reportingRoot && (
+              <ReportLink onClick={() => setReportingRoot(true)} />
+            )}
           </div>
+          {reportingRoot && (
+            <div style={{ marginTop: "0.5rem" }}>
+              <ReportDialog
+                session={session}
+                subject={recordRes.record.author}
+                record={id}
+                contentLabel="post"
+                onClose={() => setReportingRoot(false)}
+              />
+            </div>
+          )}
           {typeof recordRes.record.reply_to === "string" && (
             <div style={{ ...styles.muted, marginTop: "0.3rem" }}>
               ↳{" "}
@@ -282,6 +300,7 @@ export function PostPage({
           imageboard={imageboard}
           muted={false}
           attested={attested}
+          session={session}
           onOpenPost={onOpenPost}
           onViewAccount={onViewAccount}
         />
@@ -304,6 +323,7 @@ export function PostPage({
                 imageboard={imageboard}
                 muted
                 attested={attested}
+                session={session}
                 onOpenPost={onOpenPost}
                 onViewAccount={onViewAccount}
               />
@@ -327,6 +347,7 @@ function ReplyCard({
   imageboard,
   muted,
   attested,
+  session,
   onOpenPost,
   onViewAccount,
 }: {
@@ -336,9 +357,11 @@ function ReplyCard({
   imageboard: boolean;
   muted: boolean;
   attested: AttestedCache;
+  session: Session;
   onOpenPost: (id: string) => void;
   onViewAccount: (id: string) => void;
 }) {
+  const [reporting, setReporting] = useState(false);
   if (error !== null) {
     return (
       <div style={styles.errorCard}>
@@ -350,6 +373,7 @@ function ReplyCard({
   const { record, author } = item.item;
   const name = verifiedDisplayName(author, authorBundle, imageboard);
   const cardStyle = muted ? { ...styles.card, borderColor: "#bbb", background: "#fafafa" } : styles.card;
+  const own = author === session.root.account;
   return (
     <div style={cardStyle}>
       <div style={{ marginBottom: "0.35rem" }}>
@@ -361,24 +385,38 @@ function ReplyCard({
         />
       </div>
       <div style={{ whiteSpace: "pre-wrap" }}>{String(record.body ?? "")}</div>
-      <div style={{ ...styles.muted, marginTop: "0.4rem" }}>
-        {record.created_at}
-        <span title="signature and device-cert chain verified by this client"> · verified ✓</span>
-        {item.item.reply_count > 0 && (
-          <>
-            {" · "}
-            <a
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                onOpenPost(item.id);
-              }}
-            >
-              {replyCountLabel(item.item.reply_count)}
-            </a>
-          </>
-        )}
+      <div style={{ ...styles.muted, marginTop: "0.4rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <span>
+          {record.created_at}
+          <span title="signature and device-cert chain verified by this client"> · verified ✓</span>
+          {item.item.reply_count > 0 && (
+            <>
+              {" · "}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onOpenPost(item.id);
+                }}
+              >
+                {replyCountLabel(item.item.reply_count)}
+              </a>
+            </>
+          )}
+        </span>
+        {!own && !reporting && <ReportLink onClick={() => setReporting(true)} />}
       </div>
+      {reporting && (
+        <div style={{ marginTop: "0.5rem" }}>
+          <ReportDialog
+            session={session}
+            subject={author}
+            record={item.id}
+            contentLabel="post"
+            onClose={() => setReporting(false)}
+          />
+        </div>
+      )}
     </div>
   );
 }

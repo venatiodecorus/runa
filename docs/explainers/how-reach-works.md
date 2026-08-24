@@ -24,6 +24,14 @@ Every number above is published (see the [constants table](../trust-and-reach.md
 
 There is one global value per account, `standing`, between 0 and 1, starting and resting at 1. It is **enforcement, not reputation**: it can only reduce reach, never boost it, and it decays back to 1 (half-life 30 days — no permanent marks). It moves in response to reports, weighted by how *diverse* the reporters are in the graph — five reports from five unconnected regions matter far more than five hundred from one tight cluster, which is what a brigade looks like. Filing false reports burns the reporter's own standing.
 
+How that works in practice (since M7):
+
+- **Reporting** is a signed record like everything else. Reporting a private (encrypted) message forwards *your* decrypted copy along with proof you were genuinely one of its recipients — the server checks the envelope it already stores, and never gains any decryption key from a report. Sharing what was sent *to you* is a recipient's right; the report flow is just its accountable form.
+- **Diversity beats volume.** Reporters are grouped by how connected they are to each other; each group counts once, at the strength of its single most-established member. A reporter's strength comes from the same earned inbound trust that grows reach budgets — so a freshly minted swarm of accounts has almost none.
+- **Automation has a hard ceiling.** Reports alone can shrink an account's stranger-reach only so far (the cap is published). Anything beyond — a stronger penalty, a cold-outreach freeze — requires a human reviewer looking at the actual reports, and a reviewer who finds the reports false burns the *reporters'* standing instead.
+- **You're told, not profiled.** If your reach is limited, your client shows you that, and why in kind (reports, a review decision, a freeze) — never who reported you or the exact trigger numbers.
+- **Your existing followers notice nothing.** Standing gates reach to strangers; people who follow you see your posts exactly as before — that's promise 1 below, enforced in your reader's own client, not just on the server.
+
 Two hard promises, versioned like code:
 
 1. **Throttle, don't silence.** Penalties shrink your reach *to strangers*. They never disconnect you from people who already chose to follow you, and never delete your content.

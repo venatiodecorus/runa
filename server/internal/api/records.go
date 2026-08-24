@@ -40,7 +40,7 @@ func (s *server) handleGetRecord(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())
 		return
 	}
-	tr, err := s.candidateTrust(viewer, row.Account)
+	tr, standing, err := s.candidateTrust(viewer, row.Account)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())
 		return
@@ -50,6 +50,7 @@ func (s *server) handleGetRecord(w http.ResponseWriter, r *http.Request) {
 		"author":          author,
 		"reply_count":     replyCount,
 		"candidate_trust": tr,
+		"standing":        standing,
 	})
 }
 
@@ -96,6 +97,7 @@ func (s *server) handleRecordReplies(w http.ResponseWriter, r *http.Request) {
 		}
 		tm = trust.TrustMap(viewer, gv, trust.DefaultParams)
 	}
+	calc := s.standingCalc()
 	items := make([]map[string]any, 0, len(rows))
 	authors := map[string]any{}
 	for _, row := range rows {
@@ -104,14 +106,24 @@ func (s *server) handleRecordReplies(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "internal", err.Error())
 			return
 		}
+		// Standing multiplies the candidate value (§9.3) but never gates a
+		// reply's existence: every reply is served regardless (design §5.1 —
+		// throttle, don't silence), so the client buckets and re-ranks.
+		standing, err := calc.standing(row.Account)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal", err.Error())
+			return
+		}
 		var tr float64
 		if viewer != "" && viewer != row.Account {
-			tr = tm[row.Account] // implicit zero: muted, no path, or absent
+			// Implicit zero: muted, no path, or absent from the trust map.
+			tr = trust.EffectiveTrust(tm[row.Account], standing)
 		}
 		items = append(items, map[string]any{
 			"record":          json.RawMessage(row.Body),
 			"author":          row.Account,
 			"candidate_trust": tr,
+			"standing":        standing,
 			"reply_count":     replyCount,
 		})
 		if _, done := authors[row.Account]; !done {

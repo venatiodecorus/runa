@@ -88,6 +88,21 @@ func (s *Store) IsEpochMember(epochID, account string) (bool, error) {
 	return n > 0, err
 }
 
+// HasEpochKeyFor reports whether an accepted epoch-key record addressed to
+// `recipient` exists for the epoch — the *structural* recipiency proof of
+// docs/protocol.md §9.2 for a scoped-post report. Deliberately narrower
+// than IsEpochMember, which also counts the epoch's author: §9.2 asks
+// specifically for a key grant naming the reporter, and no key material is
+// ever inspected to answer it.
+func (s *Store) HasEpochKeyFor(epochID, recipient string) (bool, error) {
+	var n int
+	err := s.DB.QueryRow(
+		`SELECT EXISTS (SELECT 1 FROM epoch_keys WHERE epoch_id = ? AND recipient = ?)`,
+		epochID, recipient,
+	).Scan(&n)
+	return n > 0, err
+}
+
 // InsertEpochKey materializes an accepted key grant: its routing row plus
 // the membership it confers on `to` (§5.2 — members are the author plus
 // every account addressed by an accepted epoch-key record).

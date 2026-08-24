@@ -7,16 +7,24 @@
 import { describe, expect, it } from "vitest";
 import { CONSTANTS, trustMap, type GraphView } from "@runa/core";
 import type { FeedItem } from "../src/api/client.js";
-import { bucketReplies, instanceConstants, rankFeed } from "../src/feed/rank.js";
+import { bucketReplies, clampStanding, instanceConstants, rankFeed } from "../src/feed/rank.js";
 
 const V = "viewer";
 
-function item(author: string, created_at: string, body: string, candidate = 0, reply_count = 0): FeedItem {
+function item(
+  author: string,
+  created_at: string,
+  body: string,
+  candidate = 0,
+  reply_count = 0,
+  standing?: number,
+): FeedItem {
   return {
     record: { v: 1, type: "post", author, device: "dev", created_at, body, sig: "s" },
     author,
     candidate_trust: candidate,
     reply_count,
+    ...(standing !== undefined ? { standing } : {}),
   };
 }
 
@@ -106,6 +114,122 @@ describe("rankFeed", () => {
     const ranked = rankFeed(V, [item(V, "2026-08-20T16:00:00Z", "mine"), ...items], graph);
     expect(ranked.normal[0]).toMatchObject({ own: true });
     expect(String(ranked.normal[0]!.item.record.body)).toBe("mine");
+  });
+});
+
+describe("clampStanding", () => {
+  it("defaults to 1.0 when absent (older servers)", () => {
+    expect(clampStanding(undefined)).toBe(1.0);
+  });
+
+  it("passes through an in-range value unchanged", () => {
+    expect(clampStanding(0.42)).toBe(0.42);
+    expect(clampStanding(0)).toBe(0);
+    expect(clampStanding(1)).toBe(1);
+  });
+
+  it("clamps a negative value to 0, never treating it as amplifying trust", () => {
+    expect(clampStanding(-0.5)).toBe(0);
+  });
+
+  it("clamps a value above 1 down to 1, never amplifying trust", () => {
+    expect(clampStanding(1.5)).toBe(1);
+  });
+
+  it("treats NaN as the 1.0 default rather than propagating it", () => {
+    expect(clampStanding(NaN)).toBe(1.0);
+  });
+});
+
+describe("rankFeed: standing threading (protocol §9.3)", () => {
+  it("multiplies subjective trust by the item's clamped standing", () => {
+    // A: subjective trust 1.0 (direct follow); standing 0.5 → effective 0.5.
+    const halved = item("A", "2026-08-20T12:00:00Z", "half", 0, 0, 0.5);
+    const ranked = rankFeed(V, [halved], graph);
+    expect(ranked.normal[0]!.trust).toBeCloseTo(0.5);
+  });
+
+  it("clamps an out-of-range server standing instead of trusting it verbatim", () => {
+    const over = item("A", "2026-08-20T12:00:00Z", "over", 0, 0, 3.0);
+    // C is hop-2-only (not directly followed), so a zeroed effective trust
+    // actually buckets it as no-path rather than being rescued by the
+    // direct-follow override — isolates the clamp from that other mechanism.
+    const under = item("C", "2026-08-20T12:00:00Z", "under", 0, 0, -3.0);
+    const ranked = rankFeed(V, [over, under], graph);
+    // A: 1.0 subjective × clamp(3.0)=1 → 1.0 (never amplified past the cap).
+    expect(ranked.normal.find((r) => r.item.author === "A")!.trust).toBeCloseTo(1.0);
+    // C: 0.7 subjective × clamp(-3.0)=0 → 0, so C has no path.
+    expect(ranked.noPath.map((r) => r.item.author)).toEqual(["C"]);
+  });
+
+  it("defaults to standing 1.0 when the server omits the field", () => {
+    const noStanding = item("A", "2026-08-20T12:00:00Z", "a", 0, 0, undefined);
+    const explicitOne = item("B", "2026-08-20T12:00:00Z", "b", 0, 0, 1.0);
+    const ranked = rankFeed(V, [noStanding, explicitOne], graph);
+    expect(ranked.normal.find((r) => r.item.author === "A")!.trust).toBe(
+      ranked.normal.find((r) => r.item.author === "B")!.trust,
+    );
+  });
+
+  it("does not apply standing to the viewer's own content", () => {
+    const mine = item(V, "2026-08-20T12:00:00Z", "mine", 0, 0, 0.1);
+    const ranked = rankFeed(V, [mine], graph);
+    expect(ranked.normal[0]!.trust).toBe(CONSTANTS.multi_path_sum_cap);
+  });
+
+  it("a standing penalty can drop a hop-2 author below the feed threshold", () => {
+    // C: subjective 0.7 (two hop-2 paths); standing 0.1 → 0.07 < 0.3 threshold.
+    const penalized = item("C", "2026-08-20T12:00:00Z", "c-penalized", 0, 0, 0.1);
+    const ranked = rankFeed(V, [penalized], graph);
+    expect(ranked.normal).toHaveLength(0);
+    expect(ranked.belowThreshold).toHaveLength(1);
+    expect(ranked.belowThreshold[0]!.trust).toBeCloseTo(0.07);
+  });
+});
+
+describe("rankFeed: direct-follow override (trust-and-reach §5 invariant 3)", () => {
+  it("surfaces a directly-followed author's item in the normal bucket despite standing zeroing effective trust", () => {
+    // A is directly followed by V; a standing of 0 would otherwise send it to no-path.
+    const zeroed = item("A", "2026-08-20T12:00:00Z", "zeroed", 0, 0, 0);
+    const ranked = rankFeed(V, [zeroed], graph);
+    expect(ranked.normal.map((r) => r.item.author)).toEqual(["A"]);
+    expect(ranked.noPath).toHaveLength(0);
+    // The computed trust value itself still reflects the standing penalty —
+    // only the BUCKET is overridden, never the number shown.
+    expect(ranked.normal[0]!.trust).toBe(0);
+  });
+
+  it("does not extend the override to a hop-2-only author (not a direct follow)", () => {
+    // C is only reachable via A/B — standing 0 sends it to no-path, same as before M7.
+    const zeroed = item("C", "2026-08-20T12:00:00Z", "c-zeroed", 0, 0, 0);
+    const ranked = rankFeed(V, [zeroed], graph);
+    expect(ranked.normal).toHaveLength(0);
+    expect(ranked.noPath.map((r) => r.item.author)).toEqual(["C"]);
+  });
+
+  it("a mute (the viewer's own chosen edge) still wins over a stale direct-follow entry", () => {
+    // A is followed AND muted — mute is itself a chosen edge and prunes trust
+    // to zero; the standing override must not resurrect what was muted.
+    const mutedGraph: GraphView = { ...graph, mutes: ["A"] };
+    const zeroStanding = item("A", "2026-08-20T12:00:00Z", "a", 0, 0, 0);
+    const ranked = rankFeed(V, [zeroStanding], mutedGraph);
+    expect(ranked.normal).toHaveLength(0);
+    expect(ranked.noPath.map((r) => r.item.author)).toEqual(["A"]);
+  });
+});
+
+describe("bucketReplies: standing + direct-follow (protocol §9.3)", () => {
+  it("threads clamped standing into a reply's effective trust", () => {
+    const reply = item("A", "2026-08-20T12:00:00Z", "reply-a", 0, 0, 0.25);
+    const { normal } = bucketReplies(V, "someone-else", [reply], graph);
+    expect(normal[0]!.trust).toBeCloseTo(0.25); // A's subjective trust is 1.0
+  });
+
+  it("surfaces a directly-followed replier despite a standing penalty", () => {
+    const reply = item("A", "2026-08-20T12:00:00Z", "reply-a", 0, 0, 0);
+    const { normal, collapsed } = bucketReplies(V, "someone-else", [reply], graph);
+    expect(normal.map((r) => r.item.author)).toEqual(["A"]);
+    expect(collapsed).toHaveLength(0);
   });
 });
 

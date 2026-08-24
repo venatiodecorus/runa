@@ -48,7 +48,11 @@ export function ceilingHitRate(pop: Population, constants: SimConstants, days: n
   let hitCount = 0;
   for (const account of pop.accounts) {
     const kind = pop.kindOf[account]!;
-    if (kind === "sybil-ring") continue;
+    // reporter-brigade is structurally a sybil ring (dense internal follows,
+    // "a tight cluster by definition" — trust-and-reach §4) so it's excluded
+    // from good-faith the same way; reporter-diverse members are genuine
+    // honest-shaped accounts and stay in the good-faith population.
+    if (kind === "sybil-ring" || kind === "reporter-brigade") continue;
     const cohort = pop.spec.cohorts.find((c) => c.name === pop.cohortOf[account])!;
     const coldPerDay = cohort.coldPerDay ?? 0;
     goodFaithCount++;

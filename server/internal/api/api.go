@@ -25,6 +25,13 @@ type Config struct {
 	// rejected and clients render bare account ids. Published via /meta.
 	Imageboard bool
 
+	// AdminToken is the operator bearer token guarding the review queue
+	// (docs/protocol.md §9.4). Empty disables the feature entirely: the
+	// /admin routes are never registered, so they 404 like any unknown
+	// path — the queue is instance-local operations, and an unconfigured
+	// instance should not even admit that the surface exists.
+	AdminToken string
+
 	// Now overrides the server's clock (nil = time.Now). Budget refill
 	// depends on "today"; tests inject a clock to advance days.
 	Now func() time.Time
@@ -58,6 +65,7 @@ func New(st *store.Store, cfg Config) http.Handler {
 	mux.HandleFunc("GET /api/v1/graph/2hop", s.handleGraph2hop)
 	mux.HandleFunc("GET /api/v1/feed", s.handleFeed)
 	mux.HandleFunc("GET /api/v1/budget", s.handleGetBudget)
+	mux.HandleFunc("GET /api/v1/standing", s.handleStanding)
 	mux.HandleFunc("GET /api/v1/dm/with/{id}", s.handleDMWith)
 	mux.HandleFunc("GET /api/v1/dm/inbox", s.handleDMInbox)
 	mux.HandleFunc("GET /api/v1/epochs/keys", s.handleEpochKeys)
@@ -68,6 +76,13 @@ func New(st *store.Store, cfg Config) http.Handler {
 	mux.HandleFunc("POST /api/v1/auth/session", s.handleAuthSession)
 	mux.HandleFunc("POST /api/v1/backup", s.handleUpsertBackup)
 	mux.HandleFunc("GET /api/v1/backup/{account}", s.handleGetBackup)
+	// Operator review queue (§9.4): registered only when an operator token
+	// is configured, so an unconfigured instance answers 404 — the spec's
+	// "when unset the endpoints do not exist".
+	if cfg.AdminToken != "" {
+		mux.HandleFunc("GET /api/v1/admin/review", s.handleAdminReview)
+		mux.HandleFunc("POST /api/v1/admin/review/{account}", s.handleAdminReviewDecide)
+	}
 	return mux
 }
 

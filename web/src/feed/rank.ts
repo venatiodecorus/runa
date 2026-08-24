@@ -41,10 +41,21 @@ export interface RankedItem {
   item: FeedItem;
   /** Content-addressed record id (for divergence comparison + stable keys). */
   id: string;
-  /** Client-computed effective trust (standing 1.0 pre-M7). */
+  /** Client-computed effective trust = subjective trust × clamped server standing. */
   trust: number;
   /** The viewer's own record — always visible, trust not defined by spec. */
   own: boolean;
+}
+
+/**
+ * Clamp a server-supplied standing to [0,1] (protocol §9.3, trust-and-reach
+ * §4): standing can only ever shrink effective trust, never amplify it, so an
+ * out-of-range value is clamped rather than trusted verbatim, and an absent
+ * value (older servers, or the viewer's own content) defaults to 1.0.
+ */
+export function clampStanding(standing: number | undefined): number {
+  if (standing === undefined || Number.isNaN(standing)) return 1.0;
+  return Math.min(1, Math.max(0, standing));
 }
 
 export interface RankedFeed {
@@ -79,15 +90,26 @@ export function rankFeed(
   constants: TrustConstants = CONSTANTS,
 ): RankedFeed {
   const trust = trustMap(viewer, graph, constants);
+  // The viewer's own direct-follow set (protocol §9.3, trust-and-reach §5
+  // invariant 3): a standing penalty never severs a chosen edge — content
+  // from an account the viewer directly follows always surfaces, enforced
+  // here from the viewer's own graph slice, never from the server's say-so.
+  // A mute is ALSO the viewer's own chosen edge and takes precedence over a
+  // follow (it already hard-zeroes trust above) — the standing override
+  // must not resurrect what the viewer explicitly silenced.
+  const mutedSet = new Set(graph.mutes ?? []);
+  const viewerFollows = new Set((graph.follows[viewer] ?? []).filter((id) => !mutedSet.has(id)));
   const ranked: RankedItem[] = items.map((item) => {
     const own = item.author === viewer;
     // Own content is outside trust (core throws on self-trust): always
     // visible, ranked at the cap so recency orders it among top items.
+    // Standing does not apply to the viewer's own content either.
     const subjective = own ? constants.multi_path_sum_cap : (trust[item.author] ?? 0);
+    const trustValue = own ? effectiveTrust(subjective) : effectiveTrust(subjective, clampStanding(item.standing));
     return {
       item,
       id: safeRecordId(item),
-      trust: effectiveTrust(subjective), // standing constant 1.0 in the PoC
+      trust: trustValue,
       own,
     };
   });
@@ -96,7 +118,8 @@ export function rankFeed(
   const belowThreshold: RankedItem[] = [];
   const noPath: RankedItem[] = [];
   for (const r of ranked) {
-    const bucket = r.own ? "normal" : feedBucket(r.trust, constants);
+    const directFollow = viewerFollows.has(r.item.author);
+    const bucket = r.own ? "normal" : feedBucket(r.trust, constants, directFollow);
     if (bucket === "normal") normal.push(r);
     else if (bucket === "below-threshold") belowThreshold.push(r);
     else noPath.push(r);
@@ -160,21 +183,27 @@ export function bucketReplies(
   constants: TrustConstants = CONSTANTS,
 ): BucketedReplies {
   const trust = trustMap(viewer, graph, constants);
+  // See rankFeed: a mute is also a chosen edge and takes precedence over a
+  // follow for the direct-follow override.
+  const mutedSet = new Set(graph.mutes ?? []);
+  const viewerFollows = new Set((graph.follows[viewer] ?? []).filter((id) => !mutedSet.has(id)));
   const normal: RankedItem[] = [];
   const collapsed: RankedItem[] = [];
   for (const item of items) {
     const own = item.author === viewer;
     // Own content is outside trust (core throws on self-trust); rank it at
-    // the cap, matching rankFeed's treatment.
+    // the cap, matching rankFeed's treatment. Standing does not apply to it.
     const subjective = own ? constants.multi_path_sum_cap : (trust[item.author] ?? 0);
+    const trustValue = own ? effectiveTrust(subjective) : effectiveTrust(subjective, clampStanding(item.standing));
     const ranked: RankedItem = {
       item,
       id: safeRecordId(item),
-      trust: effectiveTrust(subjective),
+      trust: trustValue,
       own,
     };
     const alwaysShown = own || item.author === postAuthor;
-    if (alwaysShown || feedBucket(ranked.trust, constants) === "normal") {
+    const directFollow = viewerFollows.has(item.author);
+    if (alwaysShown || feedBucket(ranked.trust, constants, directFollow) === "normal") {
       normal.push(ranked);
     } else {
       collapsed.push(ranked);

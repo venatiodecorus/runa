@@ -60,6 +60,14 @@ func (r *Record) String(key string) (string, bool) {
 	return s, ok
 }
 
+// Has reports whether the record carries the named field at all — the
+// distinction an optional-field validator needs between "absent" (fine) and
+// "present but the wrong type" (a rejection).
+func (r *Record) Has(key string) bool {
+	_, present := r.m[key]
+	return present
+}
+
 // Map returns the named field if it is a JSON object.
 func (r *Record) Map(key string) (map[string]any, bool) {
 	m, ok := r.m[key].(map[string]any)

@@ -90,9 +90,12 @@ export function generatePopulation(spec: ScenarioSpec): Population {
     for (const idx of rng.distinct(2, honest.length)) edge(a, honest[idx]!);
   }
 
-  // --- sybil rings: dense internal follows + bridge edges ------------------
+  // --- sybil rings & reporter-brigades: dense internal follows + bridge
+  // edges. A brigade is structurally identical to a sybil ring — "a tight
+  // cluster by definition" (trust-and-reach §4) — so it reuses this exact
+  // generation, just tagged with a different kind for metrics/ceiling logic.
   for (const cohort of spec.cohorts) {
-    if (cohort.kind !== "sybil-ring") continue;
+    if (cohort.kind !== "sybil-ring" && cohort.kind !== "reporter-brigade") continue;
     const ring = accounts.filter((a) => cohortOf[a] === cohort.name);
     const internal = Math.min(ring.length - 1, 20);
     for (const a of ring) {
@@ -105,11 +108,44 @@ export function generatePopulation(spec: ScenarioSpec): Population {
     }
   }
 
+  // --- reporter-diverse: the opposite structural shape — no follows among
+  // members at all (guarantees they can never link/cluster: direct-follow
+  // is false and Jaccard(∅,∅)=0 by standing.ts's convention), each member
+  // gets its own distinct set of honest inbound followers ("honest-like
+  // inbound follows" — same shape a genuine account earns, not a synthetic
+  // count) so reporter weight is grounded in real graph structure.
+  for (const cohort of spec.cohorts) {
+    if (cohort.kind !== "reporter-diverse") continue;
+    const members = accounts.filter((a) => cohortOf[a] === cohort.name);
+    const followersEach = cohort.targetFollowers ?? 10;
+    for (const member of members) {
+      if (honest.length === 0) break;
+      for (const idx of rng.distinct(followersEach, honest.length)) {
+        edge(honest[idx]!, member);
+      }
+    }
+  }
+
   const followerCount: Record<string, number> = {};
   for (const a of accounts) followerCount[a] = 0;
   for (const a of accounts) {
     for (const t of follows[a]!) followerCount[t] = (followerCount[t] ?? 0) + 1;
   }
 
-  return { spec, accounts, cohortOf, kindOf, follows, followerCount };
+  // --- reporting cohorts: resolve `reports.target` to the target cohort's
+  // first member, and select a deterministic prefix of `fraction` (default
+  // all) of the reporting cohort's members. No rng draw: member order is
+  // already seed-deterministic (built in cohort/index order above).
+  const reportsOf: Record<string, string[]> = {};
+  for (const cohort of spec.cohorts) {
+    if (!cohort.reports) continue;
+    const targetAccount = `${cohort.reports.target}-0000`;
+    const members = accounts.filter((a) => cohortOf[a] === cohort.name);
+    const fraction = cohort.reports.fraction ?? 1;
+    const n = Math.max(0, Math.min(members.length, Math.round(members.length * fraction)));
+    const reporters = members.slice(0, n);
+    (reportsOf[targetAccount] ??= []).push(...reporters);
+  }
+
+  return { spec, accounts, cohortOf, kindOf, follows, followerCount, reportsOf };
 }

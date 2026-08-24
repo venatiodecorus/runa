@@ -223,34 +223,52 @@ type feedItem struct {
 	Record         json.RawMessage `json:"record"`
 	Author         string          `json:"author"`
 	CandidateTrust float64         `json:"candidate_trust"`
+	Standing       float64         `json:"standing"`
 	ReplyCount     int             `json:"reply_count"`
 
 	createdAt string
 	id        string
 }
 
-// candidateTrust returns the viewer's proposed trust in author, the same
-// value /feed ranks by: 0 for an anonymous viewer, for an author viewing
-// their own record (SubjectiveTrust has no self-trust), or when no trust
-// path exists. It is a proposal only — clients recompute from /graph/2hop
-// and /meta before rendering anything as trusted.
-func (s *server) candidateTrust(viewer, author string) (float64, error) {
+// candidateTrust returns the viewer's proposed effective trust in author —
+// subjective × standing (docs/protocol.md §9.3) — alongside the author's
+// standing, which is served next to it so clients can apply the
+// direct-follow override and their own re-rank. It is 0 for an anonymous
+// viewer, for an author viewing their own record (SubjectiveTrust has no
+// self-trust), or when no trust path exists. The trust value is a proposal
+// only; the standing factor is the one server-authoritative input, because
+// its inputs (reports) are private by design.
+func (s *server) candidateTrust(viewer, author string) (candidate, standing float64, err error) {
+	standing, err = s.standingCalc().standing(author)
+	if err != nil {
+		return 0, 0, err
+	}
 	if viewer == "" || viewer == author {
-		return 0, nil
+		return 0, standing, nil
 	}
 	gv, err := s.graphView(viewer)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return trust.SubjectiveTrust(viewer, author, gv, trust.DefaultParams), nil
+	subjective := trust.SubjectiveTrust(viewer, author, gv, trust.DefaultParams)
+	return trust.EffectiveTrust(subjective, standing), standing, nil
 }
 
 // handleFeed serves the candidate feed: post records from every account
-// with positive trust in the viewer's TrustMap (mutes applied, standing 1.0
-// pre-M7), ranked candidate_trust desc then created_at desc. The trust
-// values are proposals — clients recompute from /graph/2hop and re-rank.
-// The authors map carries each appearing author's device certs and
-// revocations so clients can verify without per-author fetches.
+// with positive trust in the viewer's TrustMap (mutes applied), ranked by
+// candidate_trust = subjective × standing (§9.3) desc then created_at desc.
+// The trust values are proposals — clients recompute from /graph/2hop and
+// re-rank — while `standing` is served per item as the one
+// server-authoritative factor. The authors map carries each appearing
+// author's device certs and revocations so clients can verify without
+// per-author fetches.
+//
+// Direct-follow override (§9.3, trust-and-reach §5 invariant 3): an author
+// the viewer *chose* to follow is never dropped from the candidate pool by
+// their standing — a penalty throttles reach to strangers, it never severs
+// a chosen edge. Ordering still uses the standing-multiplied value; only
+// inclusion is overridden, which is what a standing of exactly 0 would
+// otherwise decide. Clients MUST enforce the same override locally.
 func (s *server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	viewer := s.authAccount(w, r)
 	if viewer == "" {
@@ -265,12 +283,26 @@ func (s *server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())
 		return
 	}
+	directFollows := map[string]bool{}
+	for _, subject := range gv.Follows[viewer] {
+		directFollows[subject] = true
+	}
+	calc := s.standingCalc()
 	// TrustMap never includes the viewer, so their own posts are excluded by
 	// construction; muted accounts are absent (implicit zero).
 	tm := trust.TrustMap(viewer, gv, trust.DefaultParams)
 	items := []feedItem{}
-	for author, tr := range tm {
-		if tr <= 0 {
+	for author, subjective := range tm {
+		if subjective <= 0 {
+			continue
+		}
+		standing, err := calc.standing(author)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal", err.Error())
+			return
+		}
+		tr := trust.EffectiveTrust(subjective, standing)
+		if tr <= 0 && !directFollows[author] {
 			continue
 		}
 		rows, err := s.st.ListRecords(author, []string{"post"}, limit, "")
@@ -298,6 +330,7 @@ func (s *server) handleFeed(w http.ResponseWriter, r *http.Request) {
 				Record:         json.RawMessage(row.Body),
 				Author:         author,
 				CandidateTrust: tr,
+				Standing:       standing,
 				ReplyCount:     replyCount,
 				createdAt:      row.CreatedAt,
 				id:             row.ID,

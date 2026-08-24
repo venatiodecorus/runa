@@ -9,7 +9,8 @@
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
     "gen:vectors": "vitest run --config vitest.scripts.config.ts",
-    "seed": "vite-node scripts/seed.ts"
+    "seed": "vite-node scripts/seed.ts",
+    "m7-exit": "VITE_API_BASE=http://127.0.0.1:8791 vite-node scripts/m7-exit.ts"
   },
   "dependencies": {
     "@noble/ciphers": "^1.2.1",

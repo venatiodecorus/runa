@@ -1,0 +1,151 @@
+{
+  "description": "Report records (protocol §9.1). Keys from the given hex seeds (test keys only); `certs` is context for chain verification. `reported_record` / `reported_record_id` are a plausible referenced record and its content-addressed id, not proof it exists on any instance. The plaintext case is shape-valid only — recipiency proof (§9.2: the record must name the reporter as recipient/epoch-member) and the record-must-be-a-dm-or-scoped-post rule are server-contextual ingest checks, not validated by validateReport/verifyReport.",
+  "seeds": {
+    "reporter_root_ed25519": "1111111111111111111111111111111111111111111111111111111111111111",
+    "reporter_device_ed25519": "2222222222222222222222222222222222222222222222222222222222222222",
+    "subject_root_ed25519": "5555555555555555555555555555555555555555555555555555555555555555"
+  },
+  "keys": {
+    "reporter_account_id": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+    "reporter_device_id": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+    "subject_account_id": "xoImN8fTEOxXYnvgC6JZ0lN0n0qvZERwz_vlOjX3MkI"
+  },
+  "certs": [
+    {
+      "v": 1,
+      "type": "device-cert",
+      "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+      "created_at": "2026-08-20T12:00:00Z",
+      "device_sign_pub": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+      "device_kex_pub": "ew1H2TQn-DERYHgcfHM_2J-IlwrvSQ2KoO4ZpMuKGxQ",
+      "sig": "QqeFztUkN0Vhv9oV1hL8h66765yIqXJ-d9X6ODk539XaSGNuafEct8EKCJqYEK578kw_h8HQK_-3ct8Ju_4nBQ"
+    }
+  ],
+  "reported_record": {
+    "v": 1,
+    "type": "post",
+    "author": "xoImN8fTEOxXYnvgC6JZ0lN0n0qvZERwz_vlOjX3MkI",
+    "device": "xoImN8fTEOxXYnvgC6JZ0lN0n0qvZERwz_vlOjX3MkI",
+    "created_at": "2026-08-20T12:00:00Z",
+    "body": "reported content",
+    "sig": "5RfN8cAs1_NFb3YeR94URJc-CdWh4b9aNDaiVQjkDiCsPO1Ix2BHH2o_XFzzKPLceC9qo4NJnfloElHeC7j_AQ"
+  },
+  "reported_record_id": "meczrGH0aTrYHYnXC8gJZ_ZeRHWX-APahqIg3ueHv5U",
+  "cases": [
+    {
+      "name": "valid report without record (spam, with comment)",
+      "record": {
+        "v": 1,
+        "type": "report",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-24T12:00:00Z",
+        "subject": "xoImN8fTEOxXYnvgC6JZ0lN0n0qvZERwz_vlOjX3MkI",
+        "reason": "spam",
+        "comment": "posting the same link repeatedly",
+        "sig": "KFPnQviovrBXaGdVFsIn9vfbLJWKGH4xEj-tuiARh5algL3V9hZ0qtHJPYrIHtSIi2ea3v9QxeXSeUtjIhtGCQ"
+      },
+      "valid": true,
+      "check": "chain"
+    },
+    {
+      "name": "valid report with record (harassment)",
+      "record": {
+        "v": 1,
+        "type": "report",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-24T12:05:00Z",
+        "subject": "xoImN8fTEOxXYnvgC6JZ0lN0n0qvZERwz_vlOjX3MkI",
+        "record": "meczrGH0aTrYHYnXC8gJZ_ZeRHWX-APahqIg3ueHv5U",
+        "reason": "harassment",
+        "sig": "cQubjo8b9VQ44hWSjjVrapRBVaNmUXdKLG78OBDkDBQW2n0rWM0S_UEmyGLqa4XqVs2kOK4_WWKZetGcSuoHDQ"
+      },
+      "valid": true,
+      "check": "chain"
+    },
+    {
+      "name": "valid report with plaintext (shape-valid; recipiency is server-contextual)",
+      "record": {
+        "v": 1,
+        "type": "report",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-24T12:10:00Z",
+        "subject": "xoImN8fTEOxXYnvgC6JZ0lN0n0qvZERwz_vlOjX3MkI",
+        "record": "meczrGH0aTrYHYnXC8gJZ_ZeRHWX-APahqIg3ueHv5U",
+        "reason": "illegal",
+        "plaintext": "the forwarded message body",
+        "sig": "tgiga2ulXhiCMDap62G6QOn7iyQBPZcztCE777LWOwc6qrlRa4huYtuV9kNjmr5yqsRkt8l-OFbKeznsbcuLAA"
+      },
+      "valid": true,
+      "check": "chain"
+    },
+    {
+      "name": "unknown reason",
+      "record": {
+        "v": 1,
+        "type": "report",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-24T12:15:00Z",
+        "subject": "xoImN8fTEOxXYnvgC6JZ0lN0n0qvZERwz_vlOjX3MkI",
+        "reason": "abuse",
+        "sig": "XlsZU5j0-GhP_aFFagYir6ho8QOaQeoDspjUkKwdxuqXO9oPrPCoQTYOUQrxDT8hCdSE5EBiI0HU77f1j1DvBA"
+      },
+      "valid": false,
+      "check": "type",
+      "reason": "reason must be spam | harassment | illegal | other"
+    },
+    {
+      "name": "self-report",
+      "record": {
+        "v": 1,
+        "type": "report",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-24T12:20:00Z",
+        "subject": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "reason": "spam",
+        "sig": "YXvwA3Lk6-FN4tSruBneJzBPc-rKGdkxIxIk7Xg0fE5uESuREhy1pCqa2zonP7ycmA0_I8ofjhW2JzI0e87JAg"
+      },
+      "valid": false,
+      "check": "type",
+      "reason": "author == subject is rejected (§9.1)"
+    },
+    {
+      "name": "comment longer than 1000 chars",
+      "record": {
+        "v": 1,
+        "type": "report",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-24T12:25:00Z",
+        "subject": "xoImN8fTEOxXYnvgC6JZ0lN0n0qvZERwz_vlOjX3MkI",
+        "reason": "other",
+        "comment": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "sig": "gJuulcbMcmOGzJ3rOGRDo7cgNlzsLT8FanFhJ4Y1l1BfsL0CBoRfRIdGk2zaW4JYeyfz9TrHlgmeYLmYrypdAg"
+      },
+      "valid": false,
+      "check": "type",
+      "reason": "comment must be ≤ REPORT_COMMENT_MAX chars"
+    },
+    {
+      "name": "tampered sig",
+      "record": {
+        "v": 1,
+        "type": "report",
+        "author": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+        "device": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+        "created_at": "2026-08-24T12:00:00Z",
+        "subject": "xoImN8fTEOxXYnvgC6JZ0lN0n0qvZERwz_vlOjX3MkI",
+        "reason": "harassment",
+        "comment": "posting the same link repeatedly",
+        "sig": "KFPnQviovrBXaGdVFsIn9vfbLJWKGH4xEj-tuiARh5algL3V9hZ0qtHJPYrIHtSIi2ea3v9QxeXSeUtjIhtGCQ"
+      },
+      "valid": false,
+      "check": "signature",
+      "reason": "signature must fail after tamper"
+    }
+  ]
+}
