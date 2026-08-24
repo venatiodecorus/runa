@@ -43,6 +43,7 @@ import {
   verifyAndReduceAttestations,
 } from "../verify/attestations.js";
 import { fetchAndCheckDomainProof, type DomainCheckResult } from "../verify/domain.js";
+import { AccountSearch, useVerifiedNames } from "./AccountSearch.js";
 import { Identicon } from "./Identicon.js";
 import { PostList, verifyAll } from "./Posts.js";
 import { downloadJson, shortId, styles } from "./theme.js";
@@ -60,28 +61,20 @@ export function Profile({
   imageboard?: boolean;
   onOpenPost?: (id: string) => void;
 }) {
-  const [lookup, setLookup] = useState(account);
   const [target, setTarget] = useState(account);
+  const { names, ensureNames } = useVerifiedNames(imageboard);
 
   return (
     <section>
-      <form
-        style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (lookup.trim()) setTarget(lookup.trim());
-        }}
-      >
-        <input
-          style={styles.input}
-          placeholder="View any account id…"
-          value={lookup}
-          onChange={(e) => setLookup(e.target.value)}
-        />
-        <button style={styles.button} type="submit">
-          View
-        </button>
-      </form>
+      <AccountSearch
+        session={session}
+        names={names}
+        ensureNames={ensureNames}
+        placeholder="Search people you follow, or paste any account id…"
+        buttonLabel="View"
+        emptyHint="No matches among your follows — paste a full account id to view any profile."
+        onPick={setTarget}
+      />
       <ProfileCard key={target} session={session} account={target} imageboard={imageboard} />
       <h3>Posts</h3>
       <PostList session={session} account={target} onOpenPost={onOpenPost} />
