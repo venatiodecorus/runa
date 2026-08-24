@@ -10,7 +10,11 @@
  * Root seeds are derived deterministically from each handle, so account ids
  * are stable across every reseed. Recovery word lists land in
  * testKeys/seed-personas.json (gitignored) — paste one into the web app's
- * "recover from words" flow to act as that persona in a browser.
+ * "recover from words" flow to act as that persona in a browser. Device
+ * snapshots land in testKeys/device-snapshots/<handle>.json — upload one
+ * under Recover → "Key file" to act as the persona's ORIGINAL device (word-
+ * list recovery enrolls a fresh device, which by design cannot read DMs
+ * addressed to the original — design §7.2).
  *
  * To start over: stop the server, `make reset`, restart, `make seed`.
  */
@@ -36,6 +40,7 @@ import {
   type RootKey,
 } from "../src/crypto/keys.js";
 import { buildFollow } from "../src/crypto/graph.js";
+import { buildDeviceSnapshot } from "../src/crypto/devicesnapshot.js";
 import { seedToMnemonic } from "../src/crypto/recoverykit.js";
 import { sendDm } from "../src/dm/dm.js";
 
@@ -241,9 +246,26 @@ writeFileSync(
   ) + "\n",
 );
 
+// 6. Device snapshots (dev/test only — contain root + device PRIVATE seeds):
+//    importing one via Recover → "Key file" makes the browser BE the seeded
+//    device, so tier-2 DMs sent to it stay readable — unlike word-list
+//    recovery, which enrolls a fresh device and (by design, §7.2) cannot
+//    read ciphertext addressed to the original one.
+const snapshotDir = join(outDir, "device-snapshots");
+mkdirSync(snapshotDir, { recursive: true });
+for (const p of personas) {
+  writeFileSync(
+    join(snapshotDir, `${p.handle}.json`),
+    JSON.stringify(buildDeviceSnapshot(p.root, p.device, p.cert, nowTimestamp()), null, 2) + "\n",
+  );
+}
+
 console.log(`\nseeded ${API_BASE} with:`);
 for (const p of personas) {
   console.log(`  ${p.handle.padEnd(8)} ${p.root.account}`);
 }
 console.log(`\nrecovery word lists: ${outPath}`);
-console.log('to act as a persona in a browser, use "Recover" with its word list.');
+console.log(`device snapshots:     ${snapshotDir}/<handle>.json`);
+console.log('to act as a persona on a NEW device, use "Recover" with its word list;');
+console.log('to act as the persona\'s ORIGINAL device (old DMs readable), upload its');
+console.log('device snapshot under Recover → "Key file".');

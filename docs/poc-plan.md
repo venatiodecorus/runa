@@ -115,6 +115,7 @@ Repeatable manual-testing fixtures without hand-driving browser sessions. The se
 
 - [x] `web/scripts/seed.ts` + `seed-fixture.json` (8-persona cast: 1-hop/2-hop trust structure from alice's vantage, a newcomer, and a stranger who spends a cold token); root seeds derived deterministically from handles, so account ids are stable across reseeds; recovery word lists written to `testKeys/seed-personas.json` (gitignored) for entering any persona via the browser Recover flow.
 - [x] `make seed` (needs the dev server running; `SEED_API_BASE` overridable) and `make reset` (delete the SQLite files; stop server first, restart after). Fresh-DB only — reruns exit 1 with the reset recipe on the first `account_exists` 409.
+- [x] Device snapshots (added 2026-08-24): the seeder also writes `testKeys/device-snapshots/<handle>.json` (gitignored; root + device private seeds + cert). Uploading one under Recover → "Key file" makes the browser *be* the persona's original seeded device, so pre-existing DMs decrypt — word-list recovery enrolls a fresh device, which by design cannot read ciphertext addressed to the original (design §7.2: recovery restores identity, not history; an opt-in encrypted history vault is a recorded post-PoC idea, not scheduled). Dev/test-only, client-local — not a protocol format.
 
 ## Owner addition — review fixes: handles, identicons, DM search, replies (added 2026-08-24)
 

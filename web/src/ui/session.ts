@@ -97,6 +97,24 @@ export async function enrollDevice(root: RootKey, deviceName?: string): Promise<
   return session;
 }
 
+/**
+ * DEV/TEST: adopt an existing device from a parsed snapshot instead of
+ * enrolling a new one — no new cert is posted; the snapshot's device is
+ * already certified server-side. Restores access to ciphertext addressed to
+ * that device (which enrollDevice cannot, by design — §7.2).
+ */
+export async function importDeviceSnapshot(snapshot: {
+  root: RootKey;
+  device: DeviceKeys;
+  cert: DeviceCert;
+}): Promise<Session> {
+  const session: Session = { root: snapshot.root, device: snapshot.device, cert: snapshot.cert };
+  await saveAccount(session.root);
+  await saveDevice(session.device, session.cert);
+  await login(session);
+  return session;
+}
+
 /** Forget this browser: wipe IndexedDB + drop the in-memory token. */
 export async function forgetThisBrowser(): Promise<void> {
   setSessionToken(null);
