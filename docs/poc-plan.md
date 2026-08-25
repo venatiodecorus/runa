@@ -144,6 +144,16 @@ Proposed shape (mirror the DM-request pattern: server-computed, polled, local-on
 - [ ] Nav badge with unseen count; "seen" watermark in local kv.
 - [ ] Once the rail exists, schedule the waiting riders: reply/mention notifications + cold metering (M4 note), attestation notifications (§8.1).
 
+## Owner addition — simlab network visualization (added 2026-08-25)
+
+Owner request: visualize the follow/trust graph to *feel* how the mechanics relate — how constant changes alter a user's experience and reach, and how cohort structure (sybil rings, brigades) reads as topology. Dev tool only; a possible future instance-operator tuning aid is noted but not scoped. Design decisions (from the method survey recorded in the session): ego-centric concentric-ring layout as the primary view (deterministic — BFS distance + stable sorts — and a 1:1 match for the hop-2-capped trust model); side-by-side small multiples with pinned positions for constant comparison (Archambault et al., TVCG 2011: juxtaposition beats animation except when only attributes change); discrete trust-tier node colors per PGP web-of-trust convention; sigma.js + graphology (MIT, TS-first) for WebGL rendering, ForceAtlas2 seeded + fixed-iteration for the population map.
+
+- [x] `simlab/src/viz/ego.ts`: ego model + radial layout, pure and deterministic — trust/buckets/budget straight from `@runa/core` (`trustMap`/`feedBucket`/`dailyBudget`, never re-derived); rings = viewer / direct follows / 2-hop; barycentric ring-2 ordering.
+- [x] `simlab/src/viz/overview.ts`: whole-population ForceAtlas2 layout, seeded initial positions (mulberry32) + fixed iteration count (determinism rule holds), cached per scenario (topology only — constants never move nodes).
+- [x] `simlab/src/ui/network.ts` + `viz/render.ts` (the only sigma/WebGL-touching file): ego section (viewer picker, per-viewer stat tiles incl. daily budget and reach-as-author, hover tooltips with exact trust numbers, click-to-refocus), comparison small multiples vs reference constants with a bucket-delta line, population overview with cohort / trust-lens color modes.
+- [x] Tests (`simlab/test/viz.test.ts`): ego model mirrors `trustMap`/`feedBucket` exactly; ring assignment; layout determinism + concentricity; overview layout seed-determinism. Verified in a real browser (headless Chromium/WebGL): all views render, zero console errors; sybil-stress overview visibly separates the ring cluster, trust lens shows it all-gray from an honest viewer's vantage.
+- [ ] Live-data snapshot importer (deferred — owner: synthetic-first is fine): dump a **dev** instance's follows table into the `Population` shape as a loadable "snapshot scenario"; mutes excluded by default; dev-instance-only tooling (per-viewer entitlement model — an ego view of live data could instead use the authed `/graph/2hop`, which is exactly the model's input shape). Groups view deferred until groups exist.
+
 ---
 
 ## Phase 5 — Tier-3 scoped posts (M5)

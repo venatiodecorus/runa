@@ -5,6 +5,7 @@ Models how tuning Runa's published constants changes reach over a simulated popu
 ## Run
 
 - Interactive UI: `make simlab` from the repo root (or `npm run dev -w simlab`) — scenario picker, live constant sliders with ≠-reference badges, reach CDF/histograms, newcomer budget trajectory, stat tiles including the "<1% of good-faith accounts ever hit a budget ceiling" design target.
+- Network views (in the UI): an **ego view** — the selected viewer's whole trusted world (trust is hop-capped at 2) on deterministic concentric rings, node color = feed bucket from that viewer's vantage, node size = subjective trust, click any node to refocus; when constants deviate from reference it splits into side-by-side small multiples (positions pinned, only colors/sizes change) with a bucket-delta line. A **population overview** (ForceAtlas2, seeded + fixed iterations, cached per scenario) colors by cohort or by "trust lens" from the selected viewer — sybil rings read as separate clusters, and the trust lens shows them no-path gray from any honest vantage. Rendering is sigma.js/graphology (WebGL); all numbers still come from `@runa/core` via `src/viz/ego.ts`, and `src/viz/render.ts` is the only file that touches WebGL.
 - Headless: from `simlab/`:
   ```sh
   npx vite-node cli/run.ts -- scenarios/baseline-10k.json            # JSON summary

@@ -13,6 +13,7 @@ import { resolveConstants } from "../metrics/reach.js";
 import { computeAllStanding, type StandingResult } from "../metrics/standing.js";
 import { runScenario, type RunResult } from "../run.js";
 import { attachLineTooltips, esc, fmt, histogram, legend, lineChart, type Series } from "./charts.js";
+import { buildNetworkView, type NetworkState, type NetworkView } from "./network.js";
 import { INK, SURFACE } from "./theme.js";
 
 const SCENARIOS: ScenarioSpec[] = [
@@ -45,6 +46,7 @@ const state = {
   result: null as RunResult | null,
   computing: false,
   pending: 0,
+  net: { viewer: null, overviewOn: false, colorMode: "cohort" } as NetworkState,
 };
 
 export function mount(root: HTMLElement): void {
@@ -70,6 +72,10 @@ function recompute(root: HTMLElement): void {
 function render(root: HTMLElement): void {
   const r = state.result;
   const cohorts = state.scenario.cohorts.map((c) => c.name);
+  const net: NetworkView | null =
+    r && !state.computing
+      ? buildNetworkView(r, REFERENCE, Object.keys(state.overrides).length > 0, state.net)
+      : null;
 
   root.innerHTML = `
   <main style="font-family:system-ui;max-width:960px;margin:1.5rem auto;padding:0 1rem;color:${INK.primary}">
@@ -89,12 +95,13 @@ function render(root: HTMLElement): void {
       ${SLIDERS.map(sliderRow).join("")}
     </section>
 
-    ${state.computing || !r ? `<p style="color:${INK.muted}">computing…</p>` : results(r, cohorts)}
+    ${state.computing || !r ? `<p style="color:${INK.muted}">computing…</p>` : results(r, cohorts, net)}
   </main>`;
 
   root.querySelector<HTMLSelectElement>("[data-scenario]")!.addEventListener("change", (e) => {
     state.scenario = SCENARIOS.find((s) => s.name === (e.target as HTMLSelectElement).value)!;
     state.overrides = {};
+    state.net = { viewer: null, overviewOn: false, colorMode: "cohort" };
     recompute(root);
   });
   for (const input of root.querySelectorAll<HTMLInputElement>("input[data-const]")) {
@@ -117,6 +124,20 @@ function render(root: HTMLElement): void {
       trajectory: trajectorySeries(r),
     });
   }
+  net?.wire(root, {
+    onViewer: (id) => {
+      state.net.viewer = id;
+      render(root); // constants unchanged — re-render only, no recompute
+    },
+    onOverviewShow: () => {
+      state.net.overviewOn = true;
+      render(root);
+    },
+    onColorMode: (mode) => {
+      state.net.colorMode = mode;
+      render(root);
+    },
+  });
 }
 
 function sliderRow(s: SliderSpec): string {
@@ -134,7 +155,7 @@ function sliderRow(s: SliderSpec): string {
   </label>`;
 }
 
-function results(r: RunResult, cohorts: string[]): string {
+function results(r: RunResult, cohorts: string[], net: NetworkView | null): string {
   const underTarget = r.ceiling.hitRate < 0.01;
   const tiles = [
     tile(String(r.accounts), "accounts"),
@@ -156,6 +177,7 @@ function results(r: RunResult, cohorts: string[]): string {
   const trajectories = trajectorySeries(r);
   return `
     <section style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem">${tiles}</section>
+    ${net?.html ?? ""}
     ${standingSection(r)}
     <section style="margin-bottom:1.25rem">
       <h2 style="font-size:14px;margin:0 0 .25rem">Reach CDF by cohort</h2>
