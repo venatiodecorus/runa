@@ -22,7 +22,8 @@ import {
   type ScopedPostRecord,
 } from "@runa/core";
 import { getAccount, listRecords } from "../api/client.js";
-import { decryptScopedPosts, scopeLabel, type OpenScopedPostResult } from "../crypto/epochs.js";
+import { decryptScopedPosts, type OpenScopedPostResult } from "../crypto/epochs.js";
+import { AudienceBadge } from "./AudienceBadge.js";
 import { ReportDialog, ReportLink } from "./Report.js";
 import { shortId, styles } from "./theme.js";
 import type { Session } from "./session.js";
@@ -160,19 +161,6 @@ function mergeSorted(prev: VerifiedItem[], page: VerifiedItem[]): VerifiedItem[]
   );
 }
 
-function AudienceBadge({ record, opened }: { record: RunaRecord; opened?: OpenScopedPostResult }) {
-  if (record.type !== "scoped-post") return null;
-  const label = opened?.ok ? scopeLabel(opened.scopeSource) : "Scoped";
-  return (
-    <span
-      style={{ ...styles.muted, marginLeft: "0.5rem" }}
-      title="protocol §5: encrypted under a rotating epoch key, member-only delivery"
-    >
-      🔒 {label}
-    </span>
-  );
-}
-
 function PostCard({
   item,
   session,
@@ -246,6 +234,7 @@ function PostCard({
       <div style={{ ...styles.muted, marginTop: "0.4rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
         <span>
           {record.created_at} · device <span style={styles.mono}>{shortId(record.device ?? "")}</span>
+          <AudienceBadge record={record} />
           <span title="signature and device-cert chain verified by this client"> · verified ✓</span>
         </span>
         {!own && !reporting && <ReportLink onClick={() => setReporting(true)} />}

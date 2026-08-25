@@ -21,9 +21,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { verifyAuthoredRecord, type ScopedPostRecord } from "@runa/core";
 import { fetchMeta, getFeed, getGraph2Hop, type FeedAuthor, type FeedResponse } from "../api/client.js";
-import { decryptScopedPosts, scopeLabel, type OpenScopedPostResult } from "../crypto/epochs.js";
+import { decryptScopedPosts, type OpenScopedPostResult } from "../crypto/epochs.js";
 import { instanceConstants, rankFeed, type RankedFeed, type RankedItem } from "../feed/rank.js";
 import { AccountLabel } from "./AccountLabel.js";
+import { AudienceBadge } from "./AudienceBadge.js";
 import { ReplyComposer } from "./ReplyComposer.js";
 import { ReportDialog, ReportLink } from "./Report.js";
 import { badgeStyle, styles } from "./theme.js";
@@ -184,19 +185,6 @@ function verifyItems(feed: FeedResponse, ranked: RankedFeed): Map<string, string
   return errors;
 }
 
-function AudienceBadge({ scoped, opened }: { scoped: boolean; opened?: OpenScopedPostResult }) {
-  if (!scoped) return null;
-  const label = opened?.ok ? scopeLabel(opened.scopeSource) : "Scoped";
-  return (
-    <span
-      style={{ ...styles.muted, marginLeft: "0.5rem" }}
-      title="protocol §5: encrypted under a rotating epoch key, member-only delivery"
-    >
-      🔒 {label}
-    </span>
-  );
-}
-
 function replyCountLabel(n: number): string {
   return `${n} repl${n === 1 ? "y" : "ies"} · view thread`;
 }
@@ -247,7 +235,7 @@ function FeedCard({
     return (
       <div style={benign ? styles.card : styles.errorCard}>
         <strong>Unreadable scoped post</strong>
-        <AudienceBadge scoped={scoped} opened={opened} />
+        <AudienceBadge record={record} opened={opened} />
         {benign ? (
           <div style={styles.muted}>
             Shared before this device could receive the epoch key — try syncing again later.
@@ -273,7 +261,7 @@ function FeedCard({
         <span title="effective trust, recomputed locally from your 2-hop slice">
           {item.own ? "you" : `trust ${trimTrust(item.trust)}`}
         </span>
-        <AudienceBadge scoped={scoped} opened={opened} />
+        <AudienceBadge record={record} opened={opened} />
       </div>
       <div style={{ whiteSpace: "pre-wrap" }}>{body}</div>
       <div style={{ ...styles.muted, marginTop: "0.4rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
