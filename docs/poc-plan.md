@@ -129,6 +129,21 @@ Usability findings from the owner's walkthrough of the PoC. None changes trust m
 - [x] Replies (client): inline "Reply" composer on tier-1 feed cards; a post/thread page (`View replies`) that verifies the root + every reply and buckets replies with the viewer's own trust math — inside-web, own, and parent-author replies in thread order, the rest collapsed behind a count (design §5.1: a reply exists in-thread regardless; trust gates rank, not existence). Replies to scoped posts deferred (no spec'd audience carry-over).
 - Deferred from this batch: reply notifications + their cold metering (needs notifications, M4 note stands), replying to scoped posts, thread nesting deeper than one level (replies-to-replies exist as records — `reply_to` any post — but the page shows one level).
 
+## Owner addition — follow notifications (PLANNED, added 2026-08-25)
+
+Owner request: surface "someone followed you" with follow-back / ignore actions, mirroring the DM request tray. **Not implemented** — scoping found it is not the low-effort client patch it looks like, for two reasons recorded here so a later session can pick it up:
+
+1. **Needs a new server surface plus a visibility sign-off.** No endpoint exposes inbound-follow *identities* to anyone, including the subject — `/graph/2hop` and `/accounts/{id}/follows` are outbound-only, `/accounts/{id}` returns `follower_count` only, and `store.Followers` is consumed solely by standing math. Protocol §6's rule is "inbound lists are count-only **to others**", so an authed subject-sees-own-followers endpoint is arguably within its letter — but the notification also discloses the *follower's* outbound edge to its subject, which today is only follower-visible (a private account's follow of you is currently invisible to you beyond the count). That is a design §8 visibility-contract change: explicit sign-off per the architecture.md invariants preamble, protocol §6 extended in the same PR (working agreement).
+2. **This would be the first notification in the app.** No notification/badge/tray rail exists; reply notifications (+ their cold metering, M4 note), mention notifications, and attestation notifications (§8.1) are all explicitly deferred "until notifications exist". Whatever lands here defines that primitive — build the rail shape generally (server-computed candidates, client polls/filters/verifies, seen/dismissed state client-local), not follow-specific plumbing.
+
+Proposed shape (mirror the DM-request pattern: server-computed, polled, local-only dismiss, no new record type):
+
+- [ ] Design sign-off: a `follow` discloses itself to its subject (recommended: yes — a follow is a deliberate act *directed at* the subject, and cold follows are already metered as outreach to them; count-only stays the rule for third parties). Protocol §6 updated in the same change.
+- [ ] Server: authed viewer-only inbound-follows endpoint (e.g. `GET /followers` → the signed `follow` records + author bundles, `before`-paginated like §6 listings; unfollow supersession honored) + integration tests (subject-only visibility, supersession, count-only unchanged for others).
+- [ ] Client: notification tray polling like Messages (10s); rows show identicon + verified name; actions **Follow back** (reuse Profile's `GraphActions` path — `buildGraphRecord("follow")` + `postRecord`, incl. the existing `budget_exhausted` handling) and **Dismiss** (local kv flag à la `dm.request.dismissed:*` — server never learns, fresh device starts clean by design). Each follow record re-verified (sig + cert chain) client-side before rendering.
+- [ ] Nav badge with unseen count; "seen" watermark in local kv.
+- [ ] Once the rail exists, schedule the waiting riders: reply/mention notifications + cold metering (M4 note), attestation notifications (§8.1).
+
 ---
 
 ## Phase 5 — Tier-3 scoped posts (M5)
