@@ -14,7 +14,7 @@ import {
 } from "../dm/search.js";
 import { Identicon } from "./Identicon.js";
 import { verifiedDisplayName } from "./authors.js";
-import { shortId, styles } from "./theme.js";
+import { shortId } from "./theme.js";
 import type { Session } from "./session.js";
 
 // --- verified-name cache ------------------------------------------------------
@@ -139,7 +139,7 @@ export function AccountSearch({
     <div style={{ position: "relative", marginBottom: "1rem" }}>
       <div style={{ display: "flex", gap: "0.5rem" }}>
         <input
-          style={styles.input}
+          className="input"
           placeholder={placeholder}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -160,26 +160,12 @@ export function AccountSearch({
             }
           }}
         />
-        <button style={styles.primaryButton} onClick={submit} disabled={!looksLikeId && rows.length === 0}>
+        <button className="btn btn-primary" onClick={submit} disabled={!looksLikeId && rows.length === 0}>
           {buttonLabel}
         </button>
       </div>
       {focused && (
-        <div
-          style={{
-            position: "absolute",
-            top: "calc(100% + 0.25rem)",
-            left: 0,
-            right: 0,
-            zIndex: 10,
-            background: "#fff",
-            border: "1px solid #ccc",
-            borderRadius: 8,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-            maxHeight: 280,
-            overflowY: "auto",
-          }}
-        >
+        <div className="dropdown">
           {rows.map((c, i) => (
             <div
               key={c.id}
@@ -187,24 +173,17 @@ export function AccountSearch({
                 e.preventDefault();
                 pick(c.id);
               }}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                padding: "0.5rem 0.75rem",
-                cursor: "pointer",
-                background: i === highlighted ? "#eef5fc" : "transparent",
-              }}
+              className={i === highlighted ? "dropdown-row active" : "dropdown-row"}
             >
               <Identicon id={c.id} size={20} />
               {c.displayName && <strong>{c.displayName}</strong>}
-              <span style={{ ...styles.mono, ...styles.muted }}>{shortId(c.id)}</span>
-              <span style={{ flex: 1 }} />
-              <span style={styles.muted}>{sourceLabel(c.source)}</span>
+              <span className="mono muted">{shortId(c.id)}</span>
+              <span className="spacer" />
+              <span className="faint">{sourceLabel(c.source)}</span>
             </div>
           ))}
           {rows.length === 0 && trimmed.length > 0 && !looksLikeId && (
-            <p style={{ ...styles.muted, padding: "0.5rem 0.75rem", margin: 0 }}>{emptyHint}</p>
+            <p className="muted" style={{ padding: "0.5rem 0.75rem", margin: 0 }}>{emptyHint}</p>
           )}
         </div>
       )}

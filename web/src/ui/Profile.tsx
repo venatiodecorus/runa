@@ -47,7 +47,8 @@ import { AccountSearch, useVerifiedNames } from "./AccountSearch.js";
 import { Identicon } from "./Identicon.js";
 import { PostList, verifyAll } from "./Posts.js";
 import { ReportDialog } from "./Report.js";
-import { downloadJson, shortId, styles } from "./theme.js";
+import { downloadJson, shortId } from "./theme.js";
+import { IconGlobe, IconShieldCheck, IconUsers, Loading } from "./icons.js";
 import type { Session } from "./session.js";
 
 export function Profile({
@@ -152,8 +153,8 @@ function ProfileCard({
     }
   };
 
-  if (error) return <p style={{ color: "crimson" }}>Could not load account: {error}</p>;
-  if (info === null) return <p style={styles.muted}>Loading…</p>;
+  if (error) return <p className="error-text">Could not load account: {error}</p>;
+  if (info === null) return <Loading label="Loading…" />;
 
   // Imageboard mode (design §17): profile records are neither rendered nor
   // editable — accounts are their ids; judge users by their content.
@@ -161,25 +162,28 @@ function ProfileCard({
     !imageboard && info.profile !== null && profileError === null ? info.profile : null;
 
   return (
-    <div style={styles.card}>
+    <div className="card">
       <h2 style={{ margin: "0 0 0.25rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
         <Identicon id={account} size={40} title={account} />
         {verifiedProfile ? String(verifiedProfile.display_name ?? shortId(account)) : shortId(account)}
-        {isOwn && <span style={styles.muted}> (you)</span>}
+        {isOwn && <span className="muted"> (you)</span>}
       </h2>
-      <div style={{ ...styles.mono, ...styles.muted }}>{account}</div>
+      <div className="mono faint">{account}</div>
       {imageboard && (
-        <p style={styles.muted}>This instance runs imageboard mode — no profiles; accounts are their ids.</p>
+        <p className="muted">This instance runs imageboard mode — no profiles; accounts are their ids.</p>
       )}
       {!imageboard && profileError !== null && (
-        <p style={{ color: "crimson" }}>
+        <p className="error-text">
           Profile record failed verification and is not displayed: {profileError}
         </p>
       )}
       {verifiedProfile?.bio !== undefined && (
         <p style={{ whiteSpace: "pre-wrap" }}>{String(verifiedProfile.bio)}</p>
       )}
-      <p style={styles.muted}>{info.follower_count} follower(s)</p>
+      <p className="muted row">
+        <IconUsers size={13} />
+        {info.follower_count} follower(s)
+      </p>
       {!isOwn && (
         <GraphActions
           session={session}
@@ -190,30 +194,30 @@ function ProfileCard({
       {!isOwn && <VerificationSection session={session} account={account} accountInfo={info} />}
       <DomainsSection session={session} account={account} isOwn={isOwn} accountInfo={info} />
       {isOwn && !imageboard && !editing && (
-        <button style={styles.button} onClick={() => setEditing(true)}>
+        <button className="btn btn-ghost btn-sm" style={{ marginTop: "0.75rem" }} onClick={() => setEditing(true)}>
           Edit profile
         </button>
       )}
       {isOwn && !imageboard && editing && (
         <div style={{ display: "grid", gap: "0.5rem", marginTop: "0.5rem" }}>
           <input
-            style={styles.input}
+            className="input"
             placeholder="Display name (non-unique — never an identifier)"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
           />
           <textarea
-            style={styles.textarea}
+            className="textarea"
             rows={2}
             placeholder="Bio"
             value={bio}
             onChange={(e) => setBio(e.target.value)}
           />
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button style={styles.primaryButton} disabled={busy} onClick={save}>
+          <div className="row">
+            <button className="btn btn-primary btn-sm" disabled={busy} onClick={save}>
               {busy ? "Saving…" : "Save"}
             </button>
-            <button style={styles.button} disabled={busy} onClick={() => setEditing(false)}>
+            <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setEditing(false)}>
               Cancel
             </button>
           </div>
@@ -278,9 +282,9 @@ function GraphActions({
 
   if (graph === null) {
     return error !== null ? (
-      <p style={{ color: "crimson" }}>Could not load your graph: {error}</p>
+      <p className="error-text">Could not load your graph: {error}</p>
     ) : (
-      <p style={styles.muted}>Loading graph…</p>
+      <Loading label="Loading graph…" />
     );
   }
 
@@ -288,29 +292,29 @@ function GraphActions({
   const muted = graph.mutes.includes(account);
 
   return (
-    <div style={{ marginTop: "0.5rem" }}>
-      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+    <div className="card card-nested">
+      <div className="row">
         <button
-          style={following ? styles.button : styles.primaryButton}
+          className={following ? "btn btn-sm" : "btn btn-primary btn-sm"}
           disabled={busy}
           onClick={() => act(following ? "unfollow" : "follow")}
         >
           {following ? "Unfollow" : "Follow"}
         </button>
         <button
-          style={styles.button}
+          className="btn btn-ghost btn-sm"
           disabled={busy}
           title="Private: the mute record is never served to anyone but you"
           onClick={() => act(muted ? "unmute" : "mute")}
         >
           {muted ? "Unmute" : "Mute"}
         </button>
-        {following && <span style={styles.muted}>Following</span>}
-        {muted && <span style={styles.muted}>Muted — zero trust, prunes their hop-2 paths</span>}
-        <span style={{ flex: 1 }} />
+        {following && <span className="muted">Following</span>}
+        {muted && <span className="muted">Muted — zero trust, prunes their hop-2 paths</span>}
+        <span className="spacer" />
         {!reporting && (
           <button
-            style={styles.button}
+            className="btn btn-ghost btn-sm"
             title="Report this account to the instance operator — private, never shown to them"
             onClick={() => setReporting(true)}
           >
@@ -324,17 +328,17 @@ function GraphActions({
         </div>
       )}
       {budgetNotice !== null && (
-        <div style={{ ...styles.noticeCard, marginTop: "0.5rem" }}>
+        <div className="card card-notice" style={{ marginTop: "0.5rem" }}>
           <strong>You've used today's cold-outreach budget</strong>
           <div style={{ marginTop: "0.25rem" }}>
             Following someone who doesn't trust you yet costs a token. It refills daily and grows
             as people follow you — try again after the refill.
             {budgetNotice.meter !== null && <> You have {budgetNotice.meter} tokens right now.</>}
           </div>
-          <div style={{ ...styles.muted, marginTop: "0.25rem" }}>Server: {budgetNotice.serverMessage}</div>
+          <div className="muted" style={{ marginTop: "0.25rem" }}>Server: {budgetNotice.serverMessage}</div>
         </div>
       )}
-      {error !== null && <p style={{ color: "crimson" }}>{error}</p>}
+      {error !== null && <p className="error-text">{error}</p>}
     </div>
   );
 }
@@ -423,34 +427,37 @@ function VerificationSection({
   };
 
   return (
-    <div style={{ ...styles.card, marginTop: "0.75rem" }}>
-      <h3 style={{ marginTop: 0 }}>Verification</h3>
-      <p style={styles.muted}>
+    <div className="card card-nested">
+      <h3 style={{ marginTop: 0 }} className="row">
+        <IconShieldCheck size={14} />
+        Verification
+      </h3>
+      <p className="muted">
         Compare these numbers over a channel you trust — in person, on a call, or any channel
         you're already confident this person controls. If they match on both ends, you've verified
         this key.
       </p>
-      <div style={{ ...styles.mono, marginBottom: "0.5rem" }}>
+      <div className="mono" style={{ marginBottom: "0.5rem" }}>
         <div>Fingerprint: {renderFingerprint(fingerprint(account))}</div>
         <div>Safety number: {safetyNumber(session.root.account, account)}</div>
       </div>
-      {error !== null && <p style={{ color: "crimson" }}>{error}</p>}
-      {active === null && error === null && <p style={styles.muted}>Loading attestations…</p>}
+      {error !== null && <p className="error-text">{error}</p>}
+      {active === null && error === null && <Loading label="Loading attestations…" />}
       {active !== null && (
         <>
           {own ? (
             <div>
               <p>Verified by you since {own.created_at}.</p>
-              <button style={styles.button} disabled={busy} onClick={() => withdraw()}>
+              <button className="btn btn-sm" disabled={busy} onClick={() => withdraw()}>
                 Withdraw verification
               </button>
             </div>
           ) : (
-            <button style={styles.primaryButton} disabled={busy} onClick={() => publish()}>
+            <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => publish()}>
               I compared the numbers — publish verification
             </button>
           )}
-          <p style={{ ...styles.muted, marginTop: "0.5rem" }}>
+          <p className="muted" style={{ marginTop: "0.5rem" }}>
             Verified by {trustedCount ?? "…"} people you trust ({active.length} attestation
             {active.length === 1 ? "" : "s"} total).
           </p>
@@ -558,49 +565,52 @@ function DomainsSection({
   };
 
   return (
-    <div style={{ ...styles.card, marginTop: "0.75rem" }}>
-      <h3 style={{ marginTop: 0 }}>Domains</h3>
+    <div className="card card-nested">
+      <h3 style={{ marginTop: 0 }} className="row">
+        <IconGlobe size={14} />
+        Domains
+      </h3>
       {isOwn && (
         <>
-          <p style={styles.muted}>
+          <p className="muted">
             Prove you control a domain: claim it, then serve the downloaded file at{" "}
-            <span style={styles.mono}>https://&lt;domain&gt;/.well-known/runa.json</span> with header{" "}
-            <span style={styles.mono}>Access-Control-Allow-Origin: *</span> (required for browser
+            <span className="mono">https://&lt;domain&gt;/.well-known/runa.json</span> with header{" "}
+            <span className="mono">Access-Control-Allow-Origin: *</span> (required for browser
             clients to check it). There is no "unclaim" record — removing the file simply stops the
             claim from verifying.
           </p>
-          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
+          <div className="row" style={{ marginBottom: "0.5rem" }}>
             <input
-              style={styles.input}
+              className="input"
               placeholder="example.com"
               value={newDomain}
               onChange={(e) => setNewDomain(e.target.value)}
             />
-            <button style={styles.button} disabled={busy || newDomain.trim().length === 0} onClick={() => claim()}>
+            <button className="btn btn-sm" disabled={busy || newDomain.trim().length === 0} onClick={() => claim()}>
               Claim domain
             </button>
           </div>
         </>
       )}
-      {error !== null && <p style={{ color: "crimson" }}>{error}</p>}
-      {claims === null && error === null && <p style={styles.muted}>Loading domain claims…</p>}
+      {error !== null && <p className="error-text">{error}</p>}
+      {claims === null && error === null && <Loading label="Loading domain claims…" />}
       {claims !== null && claims.length === 0 && (
-        <p style={styles.muted}>No domain claims{isOwn ? " yet" : ""}.</p>
+        <p className="muted">No domain claims{isOwn ? " yet" : ""}.</p>
       )}
       {claims !== null &&
         claims.map((c) => {
           const result = checks[c.domain];
           return (
             <div key={c.domain} style={{ marginBottom: "0.5rem" }}>
-              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                <span style={styles.mono}>{c.domain}</span>
+              <div className="row">
+                <span className="mono">{c.domain}</span>
                 {isOwn && (
-                  <button style={styles.button} onClick={() => downloadJson("runa.json", { v: 1, claims: [c] })}>
+                  <button className="btn btn-sm" onClick={() => downloadJson("runa.json", { v: 1, claims: [c] })}>
                     Download well-known file
                   </button>
                 )}
                 {!isOwn && (
-                  <button style={styles.button} disabled={result === "checking"} onClick={() => check(c)}>
+                  <button className="btn btn-sm" disabled={result === "checking"} onClick={() => check(c)}>
                     {result === "checking" ? "Checking…" : "Check"}
                   </button>
                 )}
@@ -609,9 +619,10 @@ function DomainsSection({
                 <div style={{ marginTop: "0.25rem" }}>
                   {result.ok ? (
                     <>
-                      <span style={{ color: "#1a7f37" }}>verified ✓</span>
+                      <span className="verified-check">verified ✓</span>
                       <button
-                        style={{ ...styles.button, marginLeft: "0.5rem" }}
+                        className="btn btn-sm"
+                        style={{ marginLeft: "0.5rem" }}
                         disabled={busy}
                         onClick={() => attestDomain()}
                       >
@@ -619,7 +630,7 @@ function DomainsSection({
                       </button>
                     </>
                   ) : (
-                    <span style={styles.muted} title={result.reason}>
+                    <span className="muted" title={result.reason}>
                       couldn't verify (file missing, mismatched, or the domain doesn't allow browser
                       checks — CORS)
                     </span>

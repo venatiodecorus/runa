@@ -9,7 +9,7 @@ import { looksLikeDeviceSnapshot, parseDeviceSnapshot } from "../crypto/devicesn
 import { rootFromSeed, type RootKey } from "../crypto/keys.js";
 import { getBackup } from "../api/client.js";
 import { enrollDevice, importDeviceSnapshot, defaultDeviceName, type Session } from "./session.js";
-import { styles } from "./theme.js";
+import { IconKey } from "./icons.js";
 
 type Method = "words" | "file" | "passphrase";
 
@@ -58,10 +58,7 @@ export function Recover({ onDone }: { onDone: (session: Session) => void }) {
 
   const tab = (m: Method, label: string) => (
     <button
-      style={{
-        ...styles.button,
-        ...(method === m ? { background: "#1a5fb4", color: "#fff", borderColor: "#1a5fb4" } : {}),
-      }}
+      className={method === m ? "seg-tab active" : "seg-tab"}
       onClick={() => {
         setMethod(m);
         setError(null);
@@ -74,7 +71,7 @@ export function Recover({ onDone }: { onDone: (session: Session) => void }) {
   return (
     <section>
       <h2>Recover your account</h2>
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+      <div className="seg">
         {tab("words", "24 words")}
         {tab("file", "Key file")}
         {tab("passphrase", "Passphrase backup")}
@@ -82,7 +79,8 @@ export function Recover({ onDone }: { onDone: (session: Session) => void }) {
 
       {method === "words" && (
         <textarea
-          style={{ ...styles.textarea, fontFamily: "ui-monospace, monospace" }}
+          className="textarea"
+          style={{ fontFamily: "ui-monospace, monospace" }}
           rows={4}
           placeholder="paste your 24 words, separated by spaces"
           value={words}
@@ -102,20 +100,20 @@ export function Recover({ onDone }: { onDone: (session: Session) => void }) {
               f.text().then(setFileJson, (err) => setError(String(err)));
             }}
           />
-          {fileName && <span style={styles.muted}> loaded: {fileName}</span>}
+          {fileName && <span className="muted"> loaded: {fileName}</span>}
         </p>
       )}
 
       {method === "passphrase" && (
         <div style={{ display: "grid", gap: "0.5rem" }}>
           <input
-            style={styles.input}
+            className="input"
             placeholder="Account id"
             value={account}
             onChange={(e) => setAccount(e.target.value)}
           />
           <input
-            style={styles.input}
+            className="input"
             type="password"
             placeholder="Backup passphrase"
             value={passphrase}
@@ -124,13 +122,14 @@ export function Recover({ onDone }: { onDone: (session: Session) => void }) {
         </div>
       )}
 
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
+      {error && <p className="error-text">{error}</p>}
       <p>
-        <button style={styles.primaryButton} disabled={busy !== null} onClick={recover}>
+        <button className="btn btn-primary" disabled={busy !== null} onClick={recover}>
+          <IconKey size={14} />
           {busy ?? "Recover"}
         </button>
       </p>
-      <p style={styles.muted}>
+      <p className="muted">
         Recovery signs a fresh device certificate with your root key — your old devices keep
         working until you revoke them.
       </p>

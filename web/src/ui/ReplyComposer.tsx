@@ -7,8 +7,8 @@
 import { useState } from "react";
 import { nowTimestamp, signRecord } from "@runa/core";
 import { postRecord } from "../api/client.js";
-import { styles } from "./theme.js";
 import type { Session } from "./session.js";
+import { IconSend } from "./icons.js";
 
 export function ReplyComposer({
   session,
@@ -59,20 +59,21 @@ export function ReplyComposer({
   return (
     <div>
       <textarea
-        style={styles.textarea}
+        className="textarea"
         rows={2}
         placeholder="Write a reply… (public)"
         value={body}
         onChange={(e) => setBody(e.target.value)}
         autoFocus={autoFocus}
       />
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
-      <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.4rem" }}>
-        <button style={styles.primaryButton} disabled={busy || body.trim().length === 0} onClick={send}>
+      {error && <p className="error-text">{error}</p>}
+      <div className="row" style={{ marginTop: "0.4rem" }}>
+        <button className="btn btn-primary btn-sm" disabled={busy || body.trim().length === 0} onClick={send}>
+          <IconSend size={13} />
           {busy ? "Sending…" : "Send"}
         </button>
         {onCancel && (
-          <button style={styles.button} disabled={busy} onClick={onCancel}>
+          <button className="btn btn-ghost btn-sm" disabled={busy} onClick={onCancel}>
             Cancel
           </button>
         )}

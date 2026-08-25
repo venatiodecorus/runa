@@ -8,8 +8,8 @@
  */
 import { useEffect, useState } from "react";
 import { getStanding, type StandingInfo } from "../api/client.js";
-import { styles } from "./theme.js";
 import type { Session } from "./session.js";
+import { IconAlert, IconX } from "./icons.js";
 
 /** Fetches GET /standing once when a session appears; null while unknown/unauthenticated/unreachable. */
 export function useStanding(session: Session | null): StandingInfo | null {
@@ -55,21 +55,14 @@ export function StandingBanner({ standing }: { standing: StandingInfo | null }) 
   if (standing === null || !standing.limited || dismissed) return null;
   const reasons = standing.reasons.length > 0 ? standing.reasons : ["reports"];
   return (
-    <div
-      style={{
-        ...styles.noticeCard,
-        marginBottom: "1rem",
-        display: "flex",
-        alignItems: "center",
-        gap: "0.75rem",
-      }}
-    >
+    <div className="card card-notice row" style={{ marginBottom: "1rem" }}>
+      <IconAlert size={16} />
       <span>
         Your reach is currently limited ({reasons.map((r) => reasonLabel(r, standing.frozen_until)).join(", ")}).
       </span>
-      <span style={{ flex: 1 }} />
-      <button style={styles.button} onClick={() => setDismissed(true)}>
-        Dismiss
+      <span className="spacer" />
+      <button className="icon-btn" onClick={() => setDismissed(true)} title="Dismiss">
+        <IconX size={15} />
       </button>
     </div>
   );

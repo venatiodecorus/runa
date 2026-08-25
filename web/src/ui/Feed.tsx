@@ -27,9 +27,18 @@ import { AccountLabel } from "./AccountLabel.js";
 import { AudienceBadge } from "./AudienceBadge.js";
 import { ReplyComposer } from "./ReplyComposer.js";
 import { ReportDialog, ReportLink } from "./Report.js";
-import { badgeStyle, styles } from "./theme.js";
 import { verifiedDisplayName } from "./authors.js";
 import { useAttestedCache, VerifiedBadge } from "./attested.js";
+import {
+  IconAlert,
+  IconCheck,
+  IconChevronDown,
+  IconMessage,
+  IconRefresh,
+  IconReply,
+  IconReplyMarker,
+  Loading,
+} from "./icons.js";
 import type { AttestedCache } from "../verify/attestations.js";
 import type { Session } from "./session.js";
 
@@ -102,8 +111,8 @@ export function Feed({
     load().catch((e) => setError(String(e)));
   }, [load]);
 
-  if (error) return <p style={{ color: "crimson" }}>Could not load feed: {error}</p>;
-  if (state === null) return <p style={styles.muted}>Loading feed…</p>;
+  if (error) return <p className="error-text">Could not load feed: {error}</p>;
+  if (state === null) return <Loading label="Loading feed…" />;
 
   const { feed, ranked, errors, opened, deviantKeys, sliceMs, recomputeMs } = state;
   const hidden = ranked.belowThreshold.length;
@@ -127,18 +136,20 @@ export function Feed({
   return (
     <section>
       {deviantKeys.length > 0 && (
-        <p style={badgeStyle("#9a6700", "#fff8e1")} title="design §15: clients compute with the instance's values and badge deviations">
-          this instance runs non-default constants: {deviantKeys.join(", ")}
+        <p className="notice notice-warn" title="design §15: clients compute with the instance's values and badge deviations">
+          <IconAlert size={14} />
+          <span>this instance runs non-default constants: {deviantKeys.join(", ")}</span>
         </p>
       )}
       {ranked.diverged && (
-        <p style={badgeStyle("#8b2252", "#fdeef5")} title="design §3.3: the server proposes, the client decides — that this is visible is the audit working">
-          server ranking diverged from local computation — showing local
+        <p className="notice notice-berry" title="design §3.3: the server proposes, the client decides — that this is visible is the audit working">
+          <IconAlert size={14} />
+          <span>server ranking diverged from local computation — showing local</span>
         </p>
       )}
 
       {ranked.normal.length === 0 && (
-        <p style={styles.muted}>
+        <p className="muted">
           Nothing in your feed yet — follow an account (Profile tab → view an account id → Follow).
         </p>
       )}
@@ -146,21 +157,25 @@ export function Feed({
 
       {hidden > 0 && (
         <div style={{ margin: "0.75rem 0" }}>
-          <button style={styles.button} onClick={() => setExpanded((e) => !e)}>
+          <button className="btn btn-ghost btn-sm" onClick={() => setExpanded((e) => !e)}>
+            <span style={{ display: "inline-flex", transform: expanded ? "rotate(180deg)" : undefined }}>
+              <IconChevronDown size={14} />
+            </span>
             {expanded
               ? "Hide below-threshold posts"
               : `${hidden} more post${hidden === 1 ? "" : "s"} below your trust threshold`}
           </button>
-          {expanded && ranked.belowThreshold.map(card)}
+          {expanded && <div style={{ marginTop: "0.6rem" }}>{ranked.belowThreshold.map(card)}</div>}
         </div>
       )}
 
-      <footer style={{ ...styles.muted, marginTop: "1rem", display: "flex", gap: "1rem" }}>
+      <footer className="row faint" style={{ marginTop: "1rem" }}>
         <span title="2-hop slice fetch · local trustMap + re-rank (design §13 latency habit)">
           slice {Math.round(sliceMs)}ms · recompute {Math.round(recomputeMs)}ms
         </span>
-        <span style={{ flex: 1 }} />
-        <button style={{ ...styles.button, fontSize: "1em" }} onClick={() => load().catch((e) => setError(String(e)))}>
+        <span className="spacer" />
+        <button className="btn btn-ghost btn-sm" onClick={() => load().catch((e) => setError(String(e)))}>
+          <IconRefresh size={13} />
           Refresh
         </button>
       </footer>
@@ -186,7 +201,7 @@ function verifyItems(feed: FeedResponse, ranked: RankedFeed): Map<string, string
 }
 
 function replyCountLabel(n: number): string {
-  return `${n} repl${n === 1 ? "y" : "ies"} · view thread`;
+  return `${n} repl${n === 1 ? "y" : "ies"}`;
 }
 
 function FeedCard({
@@ -218,9 +233,9 @@ function FeedCard({
   if (error !== null) {
     // Verification failed: visible placeholder, content never rendered.
     return (
-      <div style={styles.errorCard}>
+      <div className="card card-error">
         <strong>Unverifiable record</strong> — not displayed.
-        <div style={styles.muted}>{error}</div>
+        <div className="muted">{error}</div>
       </div>
     );
   }
@@ -233,42 +248,78 @@ function FeedCard({
     // never render content in either case (§5.4 verify-then-decrypt-render).
     const benign = opened?.reason === "no-key";
     return (
-      <div style={benign ? styles.card : styles.errorCard}>
-        <strong>Unreadable scoped post</strong>
-        <AudienceBadge record={record} opened={opened} />
+      <div className={benign ? "card card-muted" : "card card-error"}>
+        <div className="card-head">
+          <strong>Unreadable scoped post</strong>
+          <AudienceBadge record={record} opened={opened} />
+        </div>
         {benign ? (
-          <div style={styles.muted}>
+          <div className="muted">
             Shared before this device could receive the epoch key — try syncing again later.
           </div>
         ) : (
-          <div style={styles.muted}>Failed to decrypt ({opened?.detail}) — not displayed.</div>
+          <div className="muted">Failed to decrypt ({opened?.detail}) — not displayed.</div>
         )}
-        <div style={{ ...styles.muted, marginTop: "0.3rem" }}>{record.created_at}</div>
+        <div className="card-foot">{record.created_at}</div>
       </div>
     );
   }
 
   const body = scoped && opened?.ok ? opened.body : String(record.body ?? "");
   return (
-    <div style={styles.card}>
-      <div style={{ ...styles.muted, marginBottom: "0.35rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+    <div className="card">
+      <div className="card-head">
         <AccountLabel
           id={author}
           name={name}
           onClick={() => onViewAccount(author)}
           suffix={attested[author] !== undefined ? <VerifiedBadge since={attested[author]} /> : undefined}
         />
-        <span title="effective trust, recomputed locally from your 2-hop slice">
+        <span className="faint" title="effective trust, recomputed locally from your 2-hop slice">
           {item.own ? "you" : `trust ${trimTrust(item.trust)}`}
         </span>
+        <span className="spacer" />
         <AudienceBadge record={record} opened={opened} />
       </div>
-      <div style={{ whiteSpace: "pre-wrap" }}>{body}</div>
-      <div style={{ ...styles.muted, marginTop: "0.4rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-        <span>
-          {record.created_at}
-          <span title="signature and device-cert chain verified by this client"> · verified ✓</span>
+      <div className="card-body">{body}</div>
+      {typeof record.reply_to === "string" && (
+        <div className="card-foot">
+          <IconReplyMarker size={12} />
+          <span>reply ·</span>
+          <a
+            href="#"
+            title="open the thread this post replies into"
+            onClick={(e) => {
+              e.preventDefault();
+              onOpenPost(String(record.reply_to));
+            }}
+          >
+            view parent
+          </a>
+        </div>
+      )}
+      <div className="card-foot">
+        <span>{record.created_at}</span>
+        <span className="verified-check" title="signature and device-cert chain verified by this client">
+          <IconCheck size={12} /> verified
         </span>
+        <span className="spacer" />
+        {!scoped && record.type === "post" && (
+          <>
+            <button
+              className="link-quiet"
+              title="view thread"
+              onClick={() => onOpenPost(item.id)}
+            >
+              <IconMessage size={13} />
+              {replyCountLabel(item.item.reply_count)}
+            </button>
+            <button className="link-quiet" onClick={() => setReplying((r) => !r)}>
+              <IconReply size={13} />
+              {replying ? "Cancel" : "Reply"}
+            </button>
+          </>
+        )}
         {!item.own && !reporting && <ReportLink onClick={() => setReporting(true)} />}
       </div>
       {reporting && (
@@ -283,52 +334,18 @@ function FeedCard({
           />
         </div>
       )}
-      {typeof record.reply_to === "string" && (
-        <div style={{ ...styles.muted, marginTop: "0.3rem" }}>
-          ↳ reply ·{" "}
-          <a
-            href="#"
-            title="open the thread this post replies into"
-            onClick={(e) => {
-              e.preventDefault();
-              onOpenPost(String(record.reply_to));
-            }}
-          >
-            view parent
-          </a>
-        </div>
-      )}
-      {!scoped && record.type === "post" && (
+      {replying && !scoped && record.type === "post" && (
         <div style={{ marginTop: "0.5rem" }}>
-          <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-            <button style={styles.button} onClick={() => setReplying((r) => !r)}>
-              {replying ? "Cancel reply" : "Reply"}
-            </button>
-            <a
-              href="#"
-              style={styles.muted}
-              onClick={(e) => {
-                e.preventDefault();
-                onOpenPost(item.id);
-              }}
-            >
-              {replyCountLabel(item.item.reply_count)}
-            </a>
-          </div>
-          {replying && (
-            <div style={{ marginTop: "0.5rem" }}>
-              <ReplyComposer
-                session={session}
-                parentId={item.id}
-                autoFocus
-                onCancel={() => setReplying(false)}
-                onPosted={() => {
-                  setReplying(false);
-                  onReplyPosted();
-                }}
-              />
-            </div>
-          )}
+          <ReplyComposer
+            session={session}
+            parentId={item.id}
+            autoFocus
+            onCancel={() => setReplying(false)}
+            onPosted={() => {
+              setReplying(false);
+              onReplyPosted();
+            }}
+          />
         </div>
       )}
     </div>

@@ -7,7 +7,7 @@
  */
 import type { ReactNode } from "react";
 import { Identicon } from "./Identicon.js";
-import { shortId, styles } from "./theme.js";
+import { shortId } from "./theme.js";
 
 export function AccountLabel({
   id,
@@ -27,11 +27,13 @@ export function AccountLabel({
       <Identicon id={id} size={size} title={id} />
       {name ? (
         <>
-          <strong>{name}</strong>
-          <span style={{ ...styles.mono, ...styles.muted }}>{shortId(id)}</span>
+          <strong style={{ color: "var(--ink)" }}>{name}</strong>
+          <span className="mono faint">{shortId(id)}</span>
         </>
       ) : (
-        <span style={styles.mono}>{shortId(id)}</span>
+        <span className="mono" style={{ color: "var(--ink)" }}>
+          {shortId(id)}
+        </span>
       )}
       {suffix}
     </>

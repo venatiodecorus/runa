@@ -154,6 +154,16 @@ Owner request: visualize the follow/trust graph to *feel* how the mechanics rela
 - [x] Tests (`simlab/test/viz.test.ts`): ego model mirrors `trustMap`/`feedBucket` exactly; ring assignment; layout determinism + concentricity; overview layout seed-determinism. Verified in a real browser (headless Chromium/WebGL): all views render, zero console errors; sybil-stress overview visibly separates the ring cluster, trust lens shows it all-gray from an honest viewer's vantage.
 - [ ] Live-data snapshot importer (deferred — owner: synthetic-first is fine): dump a **dev** instance's follows table into the `Population` shape as a loadable "snapshot scenario"; mutes excluded by default; dev-instance-only tooling (per-viewer entitlement model — an ego view of live data could instead use the authed `/graph/2hop`, which is exactly the model's input shape). Groups view deferred until groups exist.
 
+## Owner addition — web client facelift (added 2026-08-25, on branch `web-facelift`, awaiting owner feedback)
+
+Owner request: modern/minimal-but-not-plain visual redesign — iconography, light+dark mode, unique identity. First real design system for the web client (it previously had zero CSS — every visual property was an inline style object). Style-only change: no logic, protocol, or verification-flow edits; all `title` tooltips carrying protocol explanations preserved; no DOM tests existed to update.
+
+- [x] `web/src/ui/theme.css` — single stylesheet: design tokens (warm-parchment light / blue-charcoal dark, deep-teal accent; violet = scoped/encrypted, green = verified), class vocabulary (cards, buttons, badges, notices, bubbles, dropdown, seg control), `prefers-color-scheme` default + `data-theme` override, reduced-motion respected.
+- [x] `web/src/ui/icons.tsx` — hand-rolled stroke SVG icon set (no icon dependency) incl. the ᚱ Raidō-rune brand mark (also the favicon, inline SVG data URI); replaces the 🌐/🔒/✓/↳ emoji everywhere.
+- [x] `web/src/ui/themeMode.ts` + inline boot script in `index.html` — sun/moon toggle in the top bar; explicit choice in `localStorage` (device-local UI pref, never sent anywhere), follows the OS until first toggle, no first-paint flash.
+- [x] All 19 UI components converted to the class vocabulary; `theme.ts` reduced to `shortId`/`downloadJson`. DMs render as real chat bubbles (own right/tinted, other left). Display font Bricolage Grotesque self-hosted via `@fontsource-variable` (npm, no font CDN — privacy posture holds).
+- [x] Verified: typecheck, all 210 web tests, production build, and an 18-screenshot light+dark walkthrough (signup/recover/feed/messages/DM thread/posts/devices/profile/post thread) against a seeded throwaway instance — zero console errors.
+
 ---
 
 ## Phase 5 — Tier-3 scoped posts (M5)

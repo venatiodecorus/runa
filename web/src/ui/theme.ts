@@ -1,98 +1,10 @@
-/** Tiny shared inline-style vocabulary — system-ui, no CSS framework. */
-import type { CSSProperties } from "react";
-
-export const styles: Record<string, CSSProperties> = {
-  card: {
-    border: "1px solid #ddd",
-    borderRadius: 8,
-    padding: "0.75rem 1rem",
-    marginBottom: "0.75rem",
-    background: "#fff",
-  },
-  errorCard: {
-    border: "1px solid crimson",
-    borderRadius: 8,
-    padding: "0.75rem 1rem",
-    marginBottom: "0.75rem",
-    background: "#fff5f5",
-    color: "crimson",
-  },
-  /** Calm inline notice (budget exhausted etc.) — informational, NOT an error. */
-  noticeCard: {
-    border: "1px solid #b8cfe8",
-    borderRadius: 8,
-    padding: "0.75rem 1rem",
-    marginBottom: "0.75rem",
-    background: "#eef5fc",
-    color: "#1c3d5a",
-  },
-  mono: {
-    fontFamily: "ui-monospace, monospace",
-    fontSize: "0.85em",
-    wordBreak: "break-all",
-  },
-  muted: { color: "#666", fontSize: "0.85em" },
-  button: {
-    padding: "0.4rem 0.9rem",
-    borderRadius: 6,
-    border: "1px solid #888",
-    background: "#f5f5f5",
-    cursor: "pointer",
-    font: "inherit",
-  },
-  primaryButton: {
-    padding: "0.4rem 0.9rem",
-    borderRadius: 6,
-    border: "1px solid #1a5fb4",
-    background: "#1a5fb4",
-    color: "#fff",
-    cursor: "pointer",
-    font: "inherit",
-  },
-  input: {
-    padding: "0.4rem 0.6rem",
-    borderRadius: 6,
-    border: "1px solid #bbb",
-    font: "inherit",
-    width: "100%",
-    boxSizing: "border-box",
-  },
-  textarea: {
-    padding: "0.5rem 0.6rem",
-    borderRadius: 6,
-    border: "1px solid #bbb",
-    font: "inherit",
-    width: "100%",
-    boxSizing: "border-box",
-    resize: "vertical",
-  },
-  wordGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gap: "0.35rem 0.9rem",
-    fontFamily: "ui-monospace, monospace",
-    fontSize: "0.9em",
-    padding: "0.75rem",
-    border: "1px dashed #888",
-    borderRadius: 8,
-    background: "#fafafa",
-  },
-};
+/**
+ * Small shared UI helpers. All visual styling lives in theme.css (design
+ * tokens + class vocabulary) — see that file for the light/dark palettes.
+ */
 
 export function shortId(id: string): string {
   return `${id.slice(0, 8)}…${id.slice(-4)}`;
-}
-
-/** Inline notice badge (deviant-constants / divergence warnings). */
-export function badgeStyle(color: string, background: string): CSSProperties {
-  return {
-    border: `1px solid ${color}`,
-    color,
-    background,
-    borderRadius: 6,
-    padding: "0.4rem 0.75rem",
-    fontSize: "0.85em",
-  };
 }
 
 /** Trigger a client-side file download (used for the key file export). */

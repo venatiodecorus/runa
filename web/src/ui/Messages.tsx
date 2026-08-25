@@ -57,7 +57,16 @@ import { AccountSearch, useVerifiedNames } from "./AccountSearch.js";
 import { Identicon } from "./Identicon.js";
 import { ReportDialog } from "./Report.js";
 import { useAttestedCache, VerifiedBadge } from "./attested.js";
-import { shortId, styles } from "./theme.js";
+import { shortId } from "./theme.js";
+import {
+  IconAlert,
+  IconArrowLeft,
+  IconCheck,
+  IconDevices,
+  IconLock,
+  IconSend,
+  Loading,
+} from "./icons.js";
 import type { AttestedCache } from "../verify/attestations.js";
 import type { Session } from "./session.js";
 
@@ -86,7 +95,8 @@ function BudgetMeter({ budget }: { budget: BudgetInfo | null }) {
   const audited = auditDailyBudget(budget);
   return (
     <p
-      style={{ ...styles.muted, marginTop: "0.5rem", marginBottom: 0 }}
+      className="faint"
+      style={{ marginTop: "0.5rem", marginBottom: 0 }}
       title={
         audited
           ? "Daily budget recomputed locally with the published formula — matches the server."
@@ -163,13 +173,13 @@ function DeclineAndReportDialog({
     };
   }, [session, conv]);
 
-  if (state.kind === "loading") return <p style={styles.muted}>Loading message…</p>;
+  if (state.kind === "loading") return <Loading label="Loading message…" />;
   if (state.kind === "error") {
     return (
-      <div style={styles.errorCard}>
+      <div className="card card-error">
         <strong>Could not load this message</strong>
-        <div style={styles.muted}>{state.message}</div>
-        <button style={{ ...styles.button, marginTop: "0.5rem" }} onClick={onClose}>
+        <div className="muted">{state.message}</div>
+        <button className="btn btn-sm" style={{ marginTop: "0.5rem" }} onClick={onClose}>
           Close
         </button>
       </div>
@@ -177,7 +187,7 @@ function DeclineAndReportDialog({
   }
   return (
     <div>
-      {state.note !== null && <p style={{ ...styles.muted, marginBottom: "0.5rem" }}>{state.note}</p>}
+      {state.note !== null && <p className="muted" style={{ marginBottom: "0.5rem" }}>{state.note}</p>}
       <ReportDialog
         session={session}
         subject={conv.with}
@@ -272,11 +282,11 @@ export function Messages({ session, imageboard }: { session: Session; imageboard
         onPick={(id) => setOpenWith({ id, focusCompose: true })}
       />
 
-      {inboxError && <p style={{ color: "crimson" }}>Could not load conversations: {inboxError}</p>}
-      {conversations === null && !inboxError && <p style={styles.muted}>Loading conversations…</p>}
+      {inboxError && <p className="error-text">Could not load conversations: {inboxError}</p>}
+      {conversations === null && !inboxError && <Loading label="Loading conversations…" />}
 
       {conversations !== null && normal.length === 0 && requests.length === 0 && (
-        <p style={styles.muted}>No conversations yet — start one with an account id above.</p>
+        <p className="muted">No conversations yet — start one with an account id above.</p>
       )}
 
       {normal.map((c) => (
@@ -291,8 +301,8 @@ export function Messages({ session, imageboard }: { session: Session; imageboard
 
       {requests.length > 0 && (
         <>
-          <h3 style={{ marginTop: "1.5rem", marginBottom: "0.25rem" }}>Requests</h3>
-          <p style={styles.muted}>
+          <h3>Requests</h3>
+          <p className="muted">
             From accounts outside your web of trust — reaching you cost the sender a cold-outreach
             token. Accepting is just replying: once you reply, the conversation moves to your inbox
             and stays free for both of you. Dismissing only hides a request in this browser, and the
@@ -310,20 +320,20 @@ export function Messages({ session, imageboard }: { session: Session; imageboard
               actions={
                 <>
                   <button
-                    style={styles.primaryButton}
+                    className="btn btn-primary btn-sm"
                     onClick={() => setOpenWith({ id: c.with, focusCompose: true })}
                   >
                     Accept &amp; reply
                   </button>
                   <button
-                    style={styles.button}
+                    className="btn btn-ghost btn-sm"
                     title="Hides this request in this browser only — the sender is not notified."
                     onClick={() => dismiss(c.with)}
                   >
                     Dismiss
                   </button>
                   <button
-                    style={styles.button}
+                    className="btn btn-danger btn-sm"
                     title="Decline and optionally forward your decrypted copy of the message for review — the sender is not notified."
                     onClick={() => setDecliningWith(c.with)}
                   >
@@ -352,11 +362,12 @@ export function Messages({ session, imageboard }: { session: Session; imageboard
               );
             })()}
           {tray.visible.length === 0 && tray.dismissed.length > 0 && (
-            <p style={styles.muted}>No open requests.</p>
+            <p className="muted">No open requests.</p>
           )}
           {tray.dismissed.length > 0 && (
             <button
-              style={{ ...styles.button, marginBottom: "0.75rem" }}
+              className="btn btn-ghost btn-sm"
+              style={{ marginBottom: "0.75rem" }}
               onClick={() => setShowDismissed((v) => !v)}
             >
               {showDismissed ? "Hide dismissed" : `Show dismissed (${tray.dismissed.length})`}
@@ -371,7 +382,7 @@ export function Messages({ session, imageboard }: { session: Session; imageboard
                 attested={attested}
                 onOpen={() => setOpenWith({ id: c.with, focusCompose: false })}
                 actions={
-                  <button style={styles.button} onClick={() => restore(c.with)}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => restore(c.with)}>
                     Restore
                   </button>
                 }
@@ -397,28 +408,22 @@ function ConversationRow({
   actions?: React.ReactNode;
 }) {
   return (
-    <div
-      style={{ ...styles.card, cursor: "pointer" }}
-      onClick={onOpen}
-      role="button"
-      title={conv.with}
-    >
-      <div style={{ display: "flex", gap: "0.75rem", alignItems: "baseline" }}>
+    <div className="card card-interactive" onClick={onOpen} role="button" title={conv.with}>
+      <div className="card-head">
         <AccountLabel
           id={conv.with}
           name={name}
           size={20}
           suffix={attested && attested[conv.with] !== undefined ? <VerifiedBadge since={attested[conv.with]} /> : undefined}
         />
-        <span style={styles.muted}>🔒 encrypted</span>
-        <span style={{ flex: 1 }} />
-        <span style={styles.muted}>{conv.last?.created_at ?? ""}</span>
+        <span className="badge badge-scoped">
+          <IconLock size={12} /> encrypted
+        </span>
+        <span className="spacer" />
+        <span className="faint">{conv.last?.created_at ?? ""}</span>
       </div>
       {actions !== undefined && (
-        <div
-          style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="card-actions" onClick={(e) => e.stopPropagation()}>
           {actions}
         </div>
       )}
@@ -584,9 +589,9 @@ function Thread({
 
   return (
     <section>
-      <header style={{ display: "flex", gap: "0.75rem", alignItems: "baseline", marginBottom: "0.5rem" }}>
-        <button style={styles.button} onClick={onBack}>
-          ← Back
+      <header className="row" style={{ marginBottom: "0.5rem" }}>
+        <button className="btn btn-ghost btn-sm" onClick={onBack}>
+          <IconArrowLeft size={15} /> Back
         </button>
         <AccountLabel
           id={withId}
@@ -595,21 +600,29 @@ function Thread({
           suffix={attested[withId] !== undefined ? <VerifiedBadge since={attested[withId]} /> : undefined}
         />
       </header>
-      <p style={{ ...styles.muted, marginBottom: "1rem" }} title="tier-2 envelope: sealed to every certified device of both participants">
-        🔒 End-to-end encrypted — the server stores only ciphertext.
+      <p
+        className="row faint"
+        style={{ marginBottom: "1rem" }}
+        title="tier-2 envelope: sealed to every certified device of both participants"
+      >
+        <IconLock size={12} /> End-to-end encrypted — the server stores only ciphertext.
       </p>
 
-      {error && <p style={{ color: "crimson" }}>Could not load messages: {error}</p>}
-      {!loaded && !error && <p style={styles.muted}>Loading messages…</p>}
+      {error && <p className="error-text">Could not load messages: {error}</p>}
+      {!loaded && !error && <Loading label="Loading messages…" />}
 
       {loaded && state.olderCursor !== null && state.olderCursor !== undefined && (
-        <button style={{ ...styles.button, marginBottom: "0.75rem" }} onClick={() => loadOlder().catch((e) => setError(String(e)))}>
+        <button
+          className="btn btn-ghost btn-sm"
+          style={{ marginBottom: "0.75rem" }}
+          onClick={() => loadOlder().catch((e) => setError(String(e)))}
+        >
           Load older messages
         </button>
       )}
 
       {loaded && ordered.length === 0 && (
-        <p style={styles.muted}>No messages yet — say hello below.</p>
+        <p className="muted">No messages yet — say hello below.</p>
       )}
 
       {ordered.map(({ id, rec, opened }) => (
@@ -619,8 +632,11 @@ function Thread({
       <div style={{ marginTop: "1rem" }}>
         {/* Key continuity (§8.3): informational only — never blocks sending. */}
         {!state.pinDiff?.firstContact && (state.pinDiff?.newDevices.length ?? 0) > 0 && (
-          <div style={styles.noticeCard}>
-            <strong>New device detected</strong>
+          <div className="card card-notice">
+            <div className="row">
+              <IconDevices size={14} />
+              <strong>New device detected</strong>
+            </div>
             <div style={{ marginTop: "0.25rem" }}>
               {name ?? shortId(withId)} added a new device since you last messaged them.
             </div>
@@ -631,15 +647,18 @@ function Thread({
               </div>
             )}
             <div style={{ marginTop: "0.5rem" }}>
-              <button style={styles.button} onClick={() => trustNewDevices().catch((e) => setError(String(e)))}>
+              <button className="btn btn-sm" onClick={() => trustNewDevices().catch((e) => setError(String(e)))}>
                 Got it — trust their new devices
               </button>
             </div>
           </div>
         )}
         {composer.notice?.kind === "budget_exhausted" && (
-          <div style={styles.noticeCard}>
-            <strong>You've used today's cold-outreach budget</strong>
+          <div className="card card-notice">
+            <div className="row">
+              <IconAlert size={14} />
+              <strong>You've used today's cold-outreach budget</strong>
+            </div>
             <div style={{ marginTop: "0.25rem" }}>
               It refills daily and grows as people follow you. Your message is kept below — send it
               after the refill, or once this person follows you back the conversation is free.
@@ -647,27 +666,27 @@ function Thread({
                 <> You have {formatBudgetMeter(budget.tokens, budget.daily_budget)} tokens right now.</>
               )}
             </div>
-            <div style={{ ...styles.muted, marginTop: "0.25rem" }}>Server: {composer.notice.serverMessage}</div>
+            <div className="faint" style={{ marginTop: "0.25rem" }}>Server: {composer.notice.serverMessage}</div>
           </div>
         )}
         <textarea
           ref={composeRef}
-          style={styles.textarea}
+          className="textarea"
           rows={3}
           placeholder="Write a message… (encrypted before it leaves this browser)"
           value={composer.draft}
           onChange={(e) => setComposer((prev) => ({ ...prev, draft: e.target.value }))}
         />
-        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", marginTop: "0.5rem" }}>
+        <div className="row" style={{ marginTop: "0.5rem" }}>
           <button
-            style={styles.primaryButton}
+            className="btn btn-primary"
             onClick={send}
             disabled={composer.sending || composer.draft.trim().length === 0}
           >
-            {composer.sending ? "Sending…" : "Send"}
+            <IconSend size={13} /> {composer.sending ? "Sending…" : "Send"}
           </button>
           {composer.notice?.kind === "error" && (
-            <span style={{ color: "crimson" }}>{composer.notice.message}</span>
+            <span className="error-text">{composer.notice.message}</span>
           )}
         </div>
         <BudgetMeter budget={budget} />
@@ -689,34 +708,40 @@ function MessageCard({
     // Placeholder ONLY — undecryptable/unverifiable content never renders.
     const benign = opened.reason === "not-recipient";
     return (
-      <div style={benign ? styles.card : styles.errorCard}>
+      <div className={benign ? "card card-muted" : "card card-error"}>
         <strong>Unreadable message</strong>
         {benign ? (
-          <div style={styles.muted}>
+          <div className="muted">
             Not sent to this device — it was probably written before this device was enrolled.
           </div>
         ) : (
-          <div style={styles.muted}>Failed verification ({opened.detail}) — not displayed.</div>
+          <div className="muted">Failed verification ({opened.detail}) — not displayed.</div>
         )}
-        <div style={{ ...styles.muted, marginTop: "0.3rem" }}>{record.created_at}</div>
+        <div className="muted" style={{ marginTop: "0.3rem" }}>{record.created_at}</div>
       </div>
     );
   }
   return (
-    <div style={{ ...styles.card, ...(own ? { background: "#f0f6ff" } : {}) }}>
-      <div style={{ ...styles.muted, marginBottom: "0.35rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-        {!own && <Identicon id={record.author} size={16} />}
-        <span style={styles.mono} title={record.author}>
-          {own ? "you" : shortId(record.author)}
-        </span>
-      </div>
-      <div style={{ whiteSpace: "pre-wrap" }}>{opened.body}</div>
-      <div style={{ ...styles.muted, marginTop: "0.4rem" }}>
-        {record.created_at}
-        <span title="signature, device-cert chain, AEAD and conversation binding verified by this client">
-          {" "}
-          · verified ✓
-        </span>
+    <div className={own ? "msg-row own" : "msg-row"}>
+      <div className={own ? "bubble own" : "bubble"}>
+        {!own && (
+          <div className="bubble-meta">
+            <Identicon id={record.author} size={16} />
+            <span className="mono" title={record.author}>
+              {shortId(record.author)}
+            </span>
+          </div>
+        )}
+        <div className="card-body">{opened.body}</div>
+        <div className="bubble-time">
+          {record.created_at}{" "}
+          <span
+            className="verified-check"
+            title="signature, device-cert chain, AEAD and conversation binding verified by this client"
+          >
+            <IconCheck size={11} /> verified
+          </span>
+        </div>
       </div>
     </div>
   );

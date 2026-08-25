@@ -7,6 +7,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { loadAttestedCache, type AttestedCache } from "../verify/attestations.js";
+import { IconShieldCheck } from "./icons.js";
 
 export function useAttestedCache(): { attested: AttestedCache; refreshAttested: () => void } {
   const [attested, setAttested] = useState<AttestedCache>({});
@@ -19,14 +20,14 @@ export function useAttestedCache(): { attested: AttestedCache; refreshAttested: 
   return { attested, refreshAttested };
 }
 
-/** Small checkmark suffix for AccountLabel — pass as `suffix` when attested[id] is set. */
+/** Small shield-check suffix for AccountLabel — pass as `suffix` when attested[id] is set. */
 export function VerifiedBadge({ since }: { since?: string }) {
   return (
     <span
+      className="verified-check"
       title={since ? `Verified by you since ${since}` : "Verified by you"}
-      style={{ color: "#1a7f37", fontWeight: 600 }}
     >
-      ✓
+      <IconShieldCheck size={14} />
     </span>
   );
 }

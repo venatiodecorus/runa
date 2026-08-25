@@ -18,7 +18,8 @@ import { useState } from "react";
 import { REPORT_COMMENT_MAX, REPORT_REASONS, type ReportReason } from "@runa/core";
 import { ApiError } from "../api/client.js";
 import { submitReport } from "../moderation/report.js";
-import { shortId, styles } from "./theme.js";
+import { shortId } from "./theme.js";
+import { IconFlag } from "./icons.js";
 import type { Session } from "./session.js";
 
 const REASON_LABELS: Record<ReportReason, string> = {
@@ -89,13 +90,13 @@ export function ReportDialog({
 
   if (step === "done") {
     return (
-      <div style={styles.noticeCard}>
+      <div className="card card-notice">
         <strong>Report sent.</strong>
         <div style={{ marginTop: "0.25rem" }}>
           Thank you — this is only visible to the instance operator, never to the reported account or
           anyone else.
         </div>
-        <button style={{ ...styles.button, marginTop: "0.5rem" }} onClick={onClose}>
+        <button className="btn btn-ghost btn-sm" style={{ marginTop: "0.5rem" }} onClick={onClose}>
           Close
         </button>
       </div>
@@ -103,35 +104,35 @@ export function ReportDialog({
   }
 
   return (
-    <div style={styles.card}>
+    <div className="card card-nested">
       <h4 style={{ marginTop: 0 }}>Report {shortId(subject)}</h4>
 
       {step === "form" && (
         <>
           <div style={{ display: "grid", gap: "0.35rem", marginBottom: "0.75rem" }}>
             {REPORT_REASONS.map((r) => (
-              <label key={r} style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              <label key={r} className="row">
                 <input type="radio" name="report-reason" checked={reason === r} onChange={() => setReason(r)} />
                 {REASON_LABELS[r]}
               </label>
             ))}
           </div>
           <textarea
-            style={styles.textarea}
+            className="textarea"
             rows={3}
             placeholder="Optional comment for the reviewer…"
             value={comment}
             maxLength={REPORT_COMMENT_MAX}
             onChange={(e) => setComment(e.target.value)}
           />
-          <p style={{ ...styles.muted, marginTop: "0.25rem" }}>
+          <p className="muted" style={{ marginTop: "0.25rem" }}>
             {comment.length}/{REPORT_COMMENT_MAX}
           </p>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button style={styles.primaryButton} onClick={() => setStep("confirm")}>
+          <div className="row">
+            <button className="btn btn-primary btn-sm" onClick={() => setStep("confirm")}>
               Continue
             </button>
-            <button style={styles.button} onClick={onClose}>
+            <button className="btn btn-ghost btn-sm" onClick={onClose}>
               Cancel
             </button>
           </div>
@@ -141,7 +142,7 @@ export function ReportDialog({
       {(step === "confirm" || step === "submitting") && (
         <>
           {plaintext !== undefined ? (
-            <div style={styles.noticeCard}>
+            <div className="card card-notice">
               <strong>This forwards your copy of this {contentLabel}</strong>
               <div style={{ marginTop: "0.35rem" }}>
                 Declining with a report sends the instance operator <em>your own decrypted copy</em> of
@@ -151,13 +152,13 @@ export function ReportDialog({
                 them.
               </div>
               <div
+                className="mono"
                 style={{
-                  ...styles.mono,
                   whiteSpace: "pre-wrap",
                   marginTop: "0.5rem",
                   padding: "0.5rem",
-                  background: "#fff",
-                  border: "1px solid #b8cfe8",
+                  background: "var(--surface-raised)",
+                  border: "1px solid var(--border-strong)",
                   borderRadius: 6,
                   maxHeight: 200,
                   overflowY: "auto",
@@ -165,27 +166,27 @@ export function ReportDialog({
               >
                 {plaintext}
               </div>
-              <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginTop: "0.5rem" }}>
+              <label className="row" style={{ marginTop: "0.5rem" }}>
                 <input type="checkbox" checked={consented} onChange={(e) => setConsented(e.target.checked)} />
                 I understand this forwards my decrypted copy of this {contentLabel} to the instance
                 operator for review.
               </label>
             </div>
           ) : (
-            <p style={styles.muted}>
+            <p className="muted">
               Send this report to the instance operator? It is never shown to the reported account or
               anyone else.
             </p>
           )}
-          <div style={{ display: "flex", gap: "0.5rem" }}>
+          <div className="row">
             <button
-              style={styles.primaryButton}
+              className="btn btn-danger btn-sm"
               disabled={step === "submitting" || (plaintext !== undefined && !consented)}
               onClick={() => submit()}
             >
               {step === "submitting" ? "Sending…" : "Send report"}
             </button>
-            <button style={styles.button} disabled={step === "submitting"} onClick={onClose}>
+            <button className="btn btn-ghost btn-sm" disabled={step === "submitting"} onClick={onClose}>
               Cancel
             </button>
           </div>
@@ -194,12 +195,12 @@ export function ReportDialog({
 
       {step === "error" && (
         <>
-          <p style={{ color: "crimson" }}>Could not send report: {error}</p>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button style={styles.primaryButton} onClick={() => setStep("confirm")}>
+          <p className="error-text">Could not send report: {error}</p>
+          <div className="row">
+            <button className="btn btn-primary btn-sm" onClick={() => setStep("confirm")}>
               Try again
             </button>
-            <button style={styles.button} onClick={onClose}>
+            <button className="btn btn-ghost btn-sm" onClick={onClose}>
               Cancel
             </button>
           </div>
@@ -218,15 +219,15 @@ export function ReportDialog({
  */
 export function ReportLink({ onClick }: { onClick: () => void }) {
   return (
-    <a
-      href="#"
-      style={styles.muted}
+    <button
+      className="link-quiet"
       onClick={(e) => {
         e.preventDefault();
         onClick();
       }}
     >
+      <IconFlag size={13} />
       Report
-    </a>
+    </button>
   );
 }

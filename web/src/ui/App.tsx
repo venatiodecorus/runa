@@ -16,7 +16,20 @@ import { Profile } from "./Profile.js";
 import { PostPage } from "./PostPage.js";
 import { Identicon } from "./Identicon.js";
 import { StandingBanner, useStanding } from "./StandingBanner.js";
-import { shortId, styles } from "./theme.js";
+import { shortId } from "./theme.js";
+import { useTheme } from "./themeMode.js";
+import {
+  RuneMark,
+  IconFeed,
+  IconMessage,
+  IconPen,
+  IconDevices,
+  IconUser,
+  IconSun,
+  IconMoon,
+  IconLogOut,
+  Loading,
+} from "./icons.js";
 
 type AnonRoute = "signup" | "recover";
 type UserRoute =
@@ -38,6 +51,7 @@ export function App() {
   const [anonRoute, setAnonRoute] = useState<AnonRoute>("signup");
   const [route, setRoute] = useState<UserRoute>({ kind: "feed" });
   const standing = useStanding(session);
+  const [theme, toggleTheme] = useTheme();
 
   useEffect(() => {
     fetchMeta().then(setMeta, (e) => setMetaError(String(e)));
@@ -70,112 +84,153 @@ export function App() {
     );
   const viewAccount = (account: string) => setRoute({ kind: "profile", account });
 
-  const navButton = (label: string, active: boolean, onClick: () => void) => (
-    <button
-      onClick={onClick}
-      style={{
-        ...styles.button,
-        ...(active ? { background: "#1a5fb4", color: "#fff", borderColor: "#1a5fb4" } : {}),
-      }}
-    >
+  const navTab = (
+    label: string,
+    icon: React.ReactNode,
+    active: boolean,
+    onClick: () => void,
+  ) => (
+    <button className={active ? "nav-tab active" : "nav-tab"} onClick={onClick}>
+      {icon}
       {label}
+    </button>
+  );
+
+  const themeToggle = (
+    <button
+      className="icon-btn"
+      onClick={toggleTheme}
+      title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+    >
+      {theme === "dark" ? <IconSun size={17} /> : <IconMoon size={17} />}
     </button>
   );
 
   const imageboard = meta?.imageboard_mode === true;
 
   return (
-    <main style={{ fontFamily: "system-ui", maxWidth: 640, margin: "2rem auto", padding: "0 1rem" }}>
-      <header style={{ marginBottom: "1.5rem" }}>
-        <h1 style={{ marginBottom: "0.25rem" }}>Runa</h1>
-        {metaError && <p style={{ color: "crimson" }}>Instance unreachable: {metaError}</p>}
-        {meta && (
-          <p style={styles.muted}>
-            Connected to instance <strong>{meta.name}</strong> (protocol v{meta.protocol_version}).
-          </p>
-        )}
-      </header>
-
-      {!booted && <p style={styles.muted}>Loading…</p>}
-
-      {booted && session === null && (
-        <>
-          <nav style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem" }}>
-            {navButton("Sign up", anonRoute === "signup", () => setAnonRoute("signup"))}
-            {navButton("Recover", anonRoute === "recover", () => setAnonRoute("recover"))}
-          </nav>
-          {anonRoute === "signup" ? (
-            <Signup onDone={setSession} />
-          ) : (
-            <Recover onDone={setSession} />
+    <>
+      <div className="topbar">
+        <div className="topbar-inner">
+          <button className="brand" onClick={() => session && setRoute({ kind: "feed" })}>
+            <span className="brand-mark">
+              <RuneMark size={17} />
+            </span>
+            Runa
+          </button>
+          {booted && session !== null && (
+            <nav className="nav-tabs">
+              {navTab("Feed", <IconFeed size={15} />, route.kind === "feed", () =>
+                setRoute({ kind: "feed" }),
+              )}
+              {navTab("Messages", <IconMessage size={15} />, route.kind === "messages", () =>
+                setRoute({ kind: "messages" }),
+              )}
+              {navTab("Posts", <IconPen size={15} />, route.kind === "posts", () =>
+                setRoute({ kind: "posts" }),
+              )}
+              {navTab("Devices", <IconDevices size={15} />, route.kind === "devices", () =>
+                setRoute({ kind: "devices" }),
+              )}
+              {navTab("Profile", <IconUser size={15} />, route.kind === "profile", () =>
+                viewAccount(session.root.account),
+              )}
+            </nav>
           )}
-        </>
-      )}
-
-      {booted && session !== null && (
-        <>
-          <nav
-            style={{
-              display: "flex",
-              gap: "0.5rem",
-              marginBottom: "1.5rem",
-              alignItems: "center",
-            }}
-          >
-            {navButton("Feed", route.kind === "feed", () => setRoute({ kind: "feed" }))}
-            {navButton("Messages", route.kind === "messages", () => setRoute({ kind: "messages" }))}
-            {navButton("My posts", route.kind === "posts", () => setRoute({ kind: "posts" }))}
-            {navButton("Devices", route.kind === "devices", () => setRoute({ kind: "devices" }))}
-            {navButton("Profile", route.kind === "profile", () => viewAccount(session.root.account))}
-            <span style={{ flex: 1 }} />
-            <span
-              style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", ...styles.mono, ...styles.muted }}
-              title={session.root.account}
-            >
-              <Identicon id={session.root.account} size={20} />
+          <span className="spacer" />
+          {booted && session !== null && (
+            <span className="account-chip" title={session.root.account}>
+              <Identicon id={session.root.account} size={18} />
               {shortId(session.root.account)}
             </span>
-            <button style={styles.button} onClick={logout} title="Wipes keys from this browser — your recovery kit stays valid">
-              Forget this browser
+          )}
+          {themeToggle}
+          {booted && session !== null && (
+            <button
+              className="icon-btn"
+              onClick={logout}
+              title="Forget this browser — wipes keys from this device; your recovery kit stays valid"
+            >
+              <IconLogOut size={17} />
             </button>
-          </nav>
-          {authError && (
-            <p style={{ color: "crimson" }}>
-              Not authenticated with the instance ({authError}) — posting will fail until it is
-              reachable again.
-            </p>
           )}
-          <StandingBanner standing={standing} />
-          {route.kind === "feed" && (
-            <Feed session={session} imageboard={imageboard} onOpenPost={openPost} onViewAccount={viewAccount} />
-          )}
-          {route.kind === "messages" && <Messages session={session} imageboard={imageboard} />}
-          {route.kind === "posts" && (
-            <Home session={session} imageboard={imageboard} onOpenPost={openPost} />
-          )}
-          {route.kind === "devices" && <Devices session={session} />}
-          {route.kind === "profile" && (
-            <Profile
-              key={route.account}
-              session={session}
-              account={route.account}
-              imageboard={imageboard}
-              onOpenPost={openPost}
-            />
-          )}
-          {route.kind === "post" && (
-            <PostPage
-              key={route.id}
-              session={session}
-              id={route.id}
-              imageboard={imageboard}
-              onBack={() => setRoute(route.back)}
-              onOpenPost={openPost}
-              onViewAccount={viewAccount}
-            />
-          )}
-        </>
-      )}
-    </main>
+        </div>
+      </div>
+
+      <main className="app-main">
+        {metaError && <p className="error-text">Instance unreachable: {metaError}</p>}
+        {meta && (
+          <p className="instance-line">
+            Connected to <strong>{meta.name}</strong> · protocol v{meta.protocol_version}
+          </p>
+        )}
+
+        {!booted && <Loading />}
+
+        {booted && session === null && (
+          <>
+            <div className="seg">
+              <button
+                className={anonRoute === "signup" ? "seg-tab active" : "seg-tab"}
+                onClick={() => setAnonRoute("signup")}
+              >
+                Sign up
+              </button>
+              <button
+                className={anonRoute === "recover" ? "seg-tab active" : "seg-tab"}
+                onClick={() => setAnonRoute("recover")}
+              >
+                Recover
+              </button>
+            </div>
+            {anonRoute === "signup" ? (
+              <Signup onDone={setSession} />
+            ) : (
+              <Recover onDone={setSession} />
+            )}
+          </>
+        )}
+
+        {booted && session !== null && (
+          <>
+            {authError && (
+              <p className="error-text">
+                Not authenticated with the instance ({authError}) — posting will fail until it is
+                reachable again.
+              </p>
+            )}
+            <StandingBanner standing={standing} />
+            {route.kind === "feed" && (
+              <Feed session={session} imageboard={imageboard} onOpenPost={openPost} onViewAccount={viewAccount} />
+            )}
+            {route.kind === "messages" && <Messages session={session} imageboard={imageboard} />}
+            {route.kind === "posts" && (
+              <Home session={session} imageboard={imageboard} onOpenPost={openPost} />
+            )}
+            {route.kind === "devices" && <Devices session={session} />}
+            {route.kind === "profile" && (
+              <Profile
+                key={route.account}
+                session={session}
+                account={route.account}
+                imageboard={imageboard}
+                onOpenPost={openPost}
+              />
+            )}
+            {route.kind === "post" && (
+              <PostPage
+                key={route.id}
+                session={session}
+                id={route.id}
+                imageboard={imageboard}
+                onBack={() => setRoute(route.back)}
+                onOpenPost={openPost}
+                onViewAccount={viewAccount}
+              />
+            )}
+          </>
+        )}
+      </main>
+    </>
   );
 }

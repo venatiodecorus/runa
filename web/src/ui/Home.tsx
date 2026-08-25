@@ -12,7 +12,7 @@ import { CONSTANTS, nowTimestamp, signRecord, type Constants } from "@runa/core"
 import { fetchMeta, getGraph2Hop, postRecord } from "../api/client.js";
 import { scopeLabel, sendScopedPost } from "../crypto/epochs.js";
 import { PostList } from "./Posts.js";
-import { styles } from "./theme.js";
+import { IconLock, IconSend } from "./icons.js";
 import type { Session } from "./session.js";
 
 type Audience = "public" | "follows" | "web";
@@ -77,21 +77,20 @@ export function Home({
 
   return (
     <section>
-      <div style={styles.card}>
+      <div className="card">
         <textarea
-          style={styles.textarea}
+          className="textarea"
           rows={3}
           placeholder="What's happening?"
           value={body}
           onChange={(e) => setBody(e.target.value)}
         />
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginTop: "0.5rem" }}>
-          <label style={styles.muted} htmlFor="audience">
-            Audience:
-          </label>
+        {error && <p className="error-text">{error}</p>}
+        <div className="row" style={{ marginTop: "0.5rem" }}>
           <select
-            id="audience"
-            style={{ ...styles.input, width: "auto" }}
+            className="input"
+            style={{ width: "auto" }}
+            aria-label="Audience"
             value={audience}
             onChange={(e) => setAudience(e.target.value as Audience)}
           >
@@ -100,18 +99,17 @@ export function Home({
             <option value="web">{scopeLabel("web")}</option>
           </select>
           {audience !== "public" && (
-            <span style={styles.muted} title="protocol §5: encrypted under a rotating epoch key, member-only delivery">
-              🔒 encrypted to {audience === "follows" ? "your followers" : "your trusted web"}
+            <span
+              className="muted"
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+              title="protocol §5: encrypted under a rotating epoch key, member-only delivery"
+            >
+              <IconLock size={12} /> encrypted to {audience === "follows" ? "your followers" : "your trusted web"}
             </span>
           )}
-        </div>
-        {error && <p style={{ color: "crimson" }}>{error}</p>}
-        <div style={{ marginTop: "0.5rem", textAlign: "right" }}>
-          <button
-            style={styles.primaryButton}
-            disabled={busy || body.trim().length === 0}
-            onClick={publish}
-          >
+          <span className="spacer" />
+          <button className="btn btn-primary" disabled={busy || body.trim().length === 0} onClick={publish}>
+            <IconSend size={13} />
             {busy ? "Posting…" : "Post"}
           </button>
         </div>

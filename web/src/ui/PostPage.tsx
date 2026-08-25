@@ -26,8 +26,15 @@ import { AccountLabel } from "./AccountLabel.js";
 import { ReplyComposer } from "./ReplyComposer.js";
 import { ReportDialog, ReportLink } from "./Report.js";
 import { verifiedDisplayName } from "./authors.js";
-import { badgeStyle, styles } from "./theme.js";
 import { useAttestedCache, VerifiedBadge } from "./attested.js";
+import {
+  IconAlert,
+  IconArrowLeft,
+  IconCheck,
+  IconChevronDown,
+  IconReplyMarker,
+  Loading,
+} from "./icons.js";
 import type { AttestedCache } from "../verify/attestations.js";
 import type { Session } from "./session.js";
 
@@ -192,44 +199,44 @@ export function PostPage({
   if (error) {
     return (
       <section>
-        <button style={styles.button} onClick={onBack}>
-          ← Back
+        <button className="btn btn-ghost btn-sm" onClick={onBack}>
+          <IconArrowLeft size={15} />
+          Back
         </button>
-        <p style={{ color: "crimson", marginTop: "0.75rem" }}>{error}</p>
+        <p className="error-text" style={{ marginTop: "0.75rem" }}>{error}</p>
       </section>
     );
   }
-  if (state === null) return <p style={styles.muted}>Loading thread…</p>;
+  if (state === null) return <Loading label="Loading thread…" />;
 
   const { recordRes, rootError, authors, errors, bucketed, nextAfter, deviantKeys } = state;
   const rootName = verifiedDisplayName(recordRes.record.author, recordRes.author, imageboard);
 
   return (
     <section>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-        <button style={styles.button} onClick={onBack}>
-          ← Back
+      <div className="row" style={{ marginBottom: "1rem" }}>
+        <button className="btn btn-ghost btn-sm" onClick={onBack}>
+          <IconArrowLeft size={15} />
+          Back
         </button>
         <h2 style={{ margin: 0 }}>Thread</h2>
       </div>
 
       {deviantKeys.length > 0 && (
-        <p
-          style={badgeStyle("#9a6700", "#fff8e1")}
-          title="design §15: clients compute with the instance's values and badge deviations"
-        >
-          this instance runs non-default constants: {deviantKeys.join(", ")}
+        <p className="notice notice-warn" title="design §15: clients compute with the instance's values and badge deviations">
+          <IconAlert size={14} />
+          <span>this instance runs non-default constants: {deviantKeys.join(", ")}</span>
         </p>
       )}
 
       {rootError !== null ? (
-        <div style={styles.errorCard}>
+        <div className="card card-error">
           <strong>Unverifiable record</strong> — not displayed.
-          <div style={styles.muted}>{rootError}</div>
+          <div className="muted">{rootError}</div>
         </div>
       ) : (
-        <div style={styles.card}>
-          <div style={{ marginBottom: "0.35rem" }}>
+        <div className="card">
+          <div className="card-head">
             <AccountLabel
               id={recordRes.record.author}
               name={rootName}
@@ -241,12 +248,13 @@ export function PostPage({
               }
             />
           </div>
-          <div style={{ whiteSpace: "pre-wrap" }}>{String(recordRes.record.body ?? "")}</div>
-          <div style={{ ...styles.muted, marginTop: "0.4rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span>
-              {recordRes.record.created_at}
-              <span title="signature and device-cert chain verified by this client"> · verified ✓</span>
+          <div className="card-body">{String(recordRes.record.body ?? "")}</div>
+          <div className="card-foot">
+            <span>{recordRes.record.created_at}</span>
+            <span className="verified-check" title="signature and device-cert chain verified by this client">
+              <IconCheck size={12} /> verified
             </span>
+            <span className="spacer" />
             {recordRes.record.author !== session.root.account && !reportingRoot && (
               <ReportLink onClick={() => setReportingRoot(true)} />
             )}
@@ -263,10 +271,12 @@ export function PostPage({
             </div>
           )}
           {typeof recordRes.record.reply_to === "string" && (
-            <div style={{ ...styles.muted, marginTop: "0.3rem" }}>
-              ↳{" "}
+            <div className="card-foot">
+              <IconReplyMarker size={12} />
+              <span>reply ·</span>
               <a
                 href="#"
+                title="open the thread this post replies into"
                 onClick={(e) => {
                   e.preventDefault();
                   onOpenPost(String(recordRes.record.reply_to));
@@ -287,9 +297,9 @@ export function PostPage({
         />
       )}
 
-      <h3 style={{ marginTop: "1.5rem" }}>Replies</h3>
+      <h3>Replies</h3>
       {bucketed.normal.length === 0 && bucketed.collapsed.length === 0 && (
-        <p style={styles.muted}>No replies yet.</p>
+        <p className="muted">No replies yet.</p>
       )}
       {bucketed.normal.map((r) => (
         <ReplyCard
@@ -308,31 +318,41 @@ export function PostPage({
 
       {bucketed.collapsed.length > 0 && (
         <div style={{ margin: "0.75rem 0" }}>
-          <button style={styles.button} onClick={() => setShowCollapsed((v) => !v)}>
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowCollapsed((v) => !v)}>
+            <span style={{ display: "inline-flex", transform: showCollapsed ? "rotate(180deg)" : undefined }}>
+              <IconChevronDown size={14} />
+            </span>
             {showCollapsed
               ? "Hide"
               : `${bucketed.collapsed.length} repl${bucketed.collapsed.length === 1 ? "y" : "ies"} from outside your web`}
           </button>
-          {showCollapsed &&
-            bucketed.collapsed.map((r) => (
-              <ReplyCard
-                key={r.id}
-                item={r}
-                error={errors.get(r.id) ?? null}
-                authorBundle={authors[r.item.author]}
-                imageboard={imageboard}
-                muted
-                attested={attested}
-                session={session}
-                onOpenPost={onOpenPost}
-                onViewAccount={onViewAccount}
-              />
-            ))}
+          {showCollapsed && (
+            <div style={{ marginTop: "0.6rem" }}>
+              {bucketed.collapsed.map((r) => (
+                <ReplyCard
+                  key={r.id}
+                  item={r}
+                  error={errors.get(r.id) ?? null}
+                  authorBundle={authors[r.item.author]}
+                  imageboard={imageboard}
+                  muted
+                  attested={attested}
+                  session={session}
+                  onOpenPost={onOpenPost}
+                  onViewAccount={onViewAccount}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {nextAfter !== null && (
-        <button style={{ ...styles.button, marginTop: "0.75rem" }} onClick={() => loadMore().catch((e) => setError(String(e)))}>
+        <button
+          className="btn btn-ghost btn-sm"
+          style={{ marginTop: "0.75rem" }}
+          onClick={() => loadMore().catch((e) => setError(String(e)))}
+        >
           Load more replies
         </button>
       )}
@@ -364,19 +384,18 @@ function ReplyCard({
   const [reporting, setReporting] = useState(false);
   if (error !== null) {
     return (
-      <div style={styles.errorCard}>
+      <div className="card card-error">
         <strong>Unverifiable record</strong> — not displayed.
-        <div style={styles.muted}>{error}</div>
+        <div className="muted">{error}</div>
       </div>
     );
   }
   const { record, author } = item.item;
   const name = verifiedDisplayName(author, authorBundle, imageboard);
-  const cardStyle = muted ? { ...styles.card, borderColor: "#bbb", background: "#fafafa" } : styles.card;
   const own = author === session.root.account;
   return (
-    <div style={cardStyle}>
-      <div style={{ marginBottom: "0.35rem" }}>
+    <div className={muted ? "card card-muted" : "card"}>
+      <div className="card-head">
         <AccountLabel
           id={author}
           name={name}
@@ -384,26 +403,18 @@ function ReplyCard({
           suffix={attested[author] !== undefined ? <VerifiedBadge since={attested[author]} /> : undefined}
         />
       </div>
-      <div style={{ whiteSpace: "pre-wrap" }}>{String(record.body ?? "")}</div>
-      <div style={{ ...styles.muted, marginTop: "0.4rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-        <span>
-          {record.created_at}
-          <span title="signature and device-cert chain verified by this client"> · verified ✓</span>
-          {item.item.reply_count > 0 && (
-            <>
-              {" · "}
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  onOpenPost(item.id);
-                }}
-              >
-                {replyCountLabel(item.item.reply_count)}
-              </a>
-            </>
-          )}
+      <div className="card-body">{String(record.body ?? "")}</div>
+      <div className="card-foot">
+        <span>{record.created_at}</span>
+        <span className="verified-check" title="signature and device-cert chain verified by this client">
+          <IconCheck size={12} /> verified
         </span>
+        <span className="spacer" />
+        {item.item.reply_count > 0 && (
+          <button className="link-quiet" title="view thread" onClick={() => onOpenPost(item.id)}>
+            {replyCountLabel(item.item.reply_count)}
+          </button>
+        )}
         {!own && !reporting && <ReportLink onClick={() => setReporting(true)} />}
       </div>
       {reporting && (

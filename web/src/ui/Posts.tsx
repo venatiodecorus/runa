@@ -25,7 +25,8 @@ import { getAccount, listRecords } from "../api/client.js";
 import { decryptScopedPosts, type OpenScopedPostResult } from "../crypto/epochs.js";
 import { AudienceBadge } from "./AudienceBadge.js";
 import { ReportDialog, ReportLink } from "./Report.js";
-import { shortId, styles } from "./theme.js";
+import { shortId } from "./theme.js";
+import { IconCheck, IconMessage, IconReplyMarker, Loading } from "./icons.js";
 import type { Session } from "./session.js";
 
 interface VerifiedItem {
@@ -134,9 +135,9 @@ export function PostList({
     load().catch((e) => setError(String(e)));
   }, [load, refreshKey]);
 
-  if (error) return <p style={{ color: "crimson" }}>Could not load posts: {error}</p>;
-  if (items === null) return <p style={styles.muted}>Loading…</p>;
-  if (items.length === 0) return <p style={styles.muted}>No posts yet.</p>;
+  if (error) return <p className="error-text">Could not load posts: {error}</p>;
+  if (items === null) return <Loading label="Loading…" />;
+  if (items.length === 0) return <p className="muted">No posts yet.</p>;
 
   const canLoadOlder = cursors !== null && (cursors.post !== null || cursors.scoped !== null);
 
@@ -146,7 +147,7 @@ export function PostList({
         <PostCard key={i} item={item} session={session} onOpenPost={onOpenPost} />
       ))}
       {canLoadOlder && cursors && (
-        <button style={styles.button} onClick={() => load(cursors).catch((e) => setError(String(e)))}>
+        <button className="btn btn-ghost btn-sm" onClick={() => load(cursors).catch((e) => setError(String(e)))}>
           Load older
         </button>
       )}
@@ -176,9 +177,9 @@ function PostCard({
   if (error !== null) {
     // Verification failed: visible placeholder, content never rendered.
     return (
-      <div style={styles.errorCard}>
+      <div className="card card-error">
         <strong>Unverifiable record</strong> — not displayed.
-        <div style={styles.muted}>{error}</div>
+        <div className="muted">{error}</div>
       </div>
     );
   }
@@ -187,29 +188,36 @@ function PostCard({
     if (opened === undefined || !opened.ok) {
       const benign = opened?.reason === "no-key";
       return (
-        <div style={benign ? styles.card : styles.errorCard}>
-          <strong>Unreadable scoped post</strong>
-          <AudienceBadge record={record} opened={opened} />
+        <div className={benign ? "card card-muted" : "card card-error"}>
+          <div className="card-head">
+            <strong>Unreadable scoped post</strong>
+            <AudienceBadge record={record} opened={opened} />
+          </div>
           {benign ? (
-            <div style={styles.muted}>
+            <div className="muted">
               Shared before this device could receive the epoch key — try syncing again later.
             </div>
           ) : (
-            <div style={styles.muted}>Failed to decrypt ({opened?.detail}) — not displayed.</div>
+            <div className="muted">Failed to decrypt ({opened?.detail}) — not displayed.</div>
           )}
-          <div style={{ ...styles.muted, marginTop: "0.3rem" }}>{record.created_at}</div>
+          <div className="card-foot">{record.created_at}</div>
         </div>
       );
     }
     return (
-      <div style={styles.card}>
-        <div style={{ whiteSpace: "pre-wrap" }}>{opened.body}</div>
-        <div style={{ ...styles.muted, marginTop: "0.4rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span>
-            {record.created_at} · device <span style={styles.mono}>{shortId(record.device ?? "")}</span>
-            <AudienceBadge record={record} opened={opened} />
-            <span title="signature, device-cert chain, and epoch decryption verified by this client"> · verified ✓</span>
+      <div className="card">
+        <div className="card-head">
+          <span className="mono faint">device {shortId(record.device ?? "")}</span>
+          <span className="spacer" />
+          <AudienceBadge record={record} opened={opened} />
+        </div>
+        <div className="card-body">{opened.body}</div>
+        <div className="card-foot">
+          <span>{record.created_at}</span>
+          <span className="verified-check" title="signature, device-cert chain, and epoch decryption verified by this client">
+            <IconCheck size={12} /> verified
           </span>
+          <span className="spacer" />
           {!own && !reporting && <ReportLink onClick={() => setReporting(true)} />}
         </div>
         {reporting && (
@@ -229,33 +237,20 @@ function PostCard({
   }
 
   return (
-    <div style={styles.card}>
-      <div style={{ whiteSpace: "pre-wrap" }}>{String(record.body ?? "")}</div>
-      <div style={{ ...styles.muted, marginTop: "0.4rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-        <span>
-          {record.created_at} · device <span style={styles.mono}>{shortId(record.device ?? "")}</span>
-          <AudienceBadge record={record} />
-          <span title="signature and device-cert chain verified by this client"> · verified ✓</span>
-        </span>
-        {!own && !reporting && <ReportLink onClick={() => setReporting(true)} />}
+    <div className="card">
+      <div className="card-head">
+        <span className="mono faint">device {shortId(record.device ?? "")}</span>
+        <span className="spacer" />
+        <AudienceBadge record={record} />
       </div>
-      {reporting && (
-        <div style={{ marginTop: "0.5rem" }}>
-          <ReportDialog
-            session={session}
-            subject={record.author}
-            record={id}
-            contentLabel="post"
-            onClose={() => setReporting(false)}
-          />
-        </div>
-      )}
+      <div className="card-body">{String(record.body ?? "")}</div>
       {typeof record.reply_to === "string" && (
-        <div style={{ ...styles.muted, marginTop: "0.3rem" }}>
-          ↳ reply
+        <div className="card-foot">
+          <IconReplyMarker size={12} />
+          <span>reply</span>
           {onOpenPost && (
             <>
-              {" · "}
+              <span>·</span>
               <a
                 href="#"
                 title="open the thread this post replies into"
@@ -270,17 +265,33 @@ function PostCard({
           )}
         </div>
       )}
-      {onOpenPost && (
-        <div style={{ ...styles.muted, marginTop: "0.3rem" }}>
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              onOpenPost(id);
-            }}
+      <div className="card-foot">
+        <span>{record.created_at}</span>
+        <span className="verified-check" title="signature and device-cert chain verified by this client">
+          <IconCheck size={12} /> verified
+        </span>
+        <span className="spacer" />
+        {onOpenPost && (
+          <button
+            className="link-quiet"
+            title="view thread"
+            onClick={() => onOpenPost(id)}
           >
+            <IconMessage size={13} />
             view thread
-          </a>
+          </button>
+        )}
+        {!own && !reporting && <ReportLink onClick={() => setReporting(true)} />}
+      </div>
+      {reporting && (
+        <div style={{ marginTop: "0.5rem" }}>
+          <ReportDialog
+            session={session}
+            subject={record.author}
+            record={id}
+            contentLabel="post"
+            onClose={() => setReporting(false)}
+          />
         </div>
       )}
     </div>
